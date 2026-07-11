@@ -1,0 +1,25 @@
+{
+  "name": "@land-registration/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hardhat workspace scaffold for Solidity contracts and gas-cost experiments.",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "gas": "REPORT_GAS=true hardhat test",
+    "lint": "solhint 'contracts/**/*.sol'",
+    "clean": "hardhat clean"
+  },
+  "dependencies": {
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.13.5",
+    "hardhat": "^2.22.18",
+    "hardhat-gas-reporter": "^2.2.2"
+  },
+  "devDependencies": {
+    "solhint": "^5.0.5"
+  }
+}

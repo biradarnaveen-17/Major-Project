@@ -1,0 +1,28 @@
+{
+  "name": "@land-registration/backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Express API scaffold for land registration gas analysis metadata and results.",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "build": "node -e \"console.log('No backend build step configured yet')\"",
+    "test": "node -e \"console.log('No backend tests implemented yet')\"",
+    "lint": "eslint src --ext .js",
+    "clean": "node -e \"console.log('No backend clean step configured yet')\""
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.13.5",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "mongoose": "^8.9.5",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.18.0",
+    "nodemon": "^3.1.9"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@land-registration/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "React frontend scaffold for wallet interaction and gas analysis dashboards.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node -e \"console.log('No frontend tests implemented yet')\"",
+    "lint": "eslint src --ext .js,.jsx",
+    "clean": "node -e \"console.log('No frontend clean step configured yet')\""
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "chart.js": "^4.4.7",
+    "ethers": "^6.13.5",
+    "react": "^18.3.1",
+    "react-chartjs-2": "^5.3.0",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "eslint": "^9.18.0",
+    "vite": "^6.0.7"
+  }
+}
