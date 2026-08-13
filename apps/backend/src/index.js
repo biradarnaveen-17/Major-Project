@@ -212,7 +212,6 @@ async function deliverLoginCode(user, code) {
     auth: { user: process.env.SMTP_USER, pass }
   });
 
-  const formattedCode = String(code).split("").join(" ");
   const recipientName = user.fullName || user.username || "User";
 
   const html = `
@@ -242,10 +241,11 @@ async function deliverLoginCode(user, code) {
             Your email verification code for the BhoomiChain land registration portal is:
           </p>
           <!-- OTP Box -->
-          <div style="background-color: #1E3A8A; border-radius: 10px; padding: 20px 16px; text-align: center; margin-bottom: 24px;">
-            <span style="font-family: 'Courier New', Courier, monospace, sans-serif; font-size: 32px; font-weight: 700; color: #FFFFFF; letter-spacing: 14px; padding-left: 14px; display: inline-block;">
-              ${formattedCode}
-            </span>
+          <div style="background-color: #1E3A8A; border-radius: 12px; padding: 24px 16px; text-align: center; margin-bottom: 24px;">
+            <div style="font-family: monospace; font-size: 34px; font-weight: 800; color: #FFFFFF; letter-spacing: 12px; padding-left: 12px; display: inline-block; margin-bottom: 14px; user-select: all; -webkit-user-select: all;">${code}</div>
+            <div>
+              <span style="display: inline-block; background-color: #2563EB; color: #FFFFFF; font-size: 14px; font-weight: 600; padding: 8px 20px; border-radius: 6px; user-select: all; -webkit-user-select: all;">Copy Code: ${code}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -305,11 +305,8 @@ const DEMO_BUYER_WALLET = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 
 app.get("/api/purchasers", (_request, response) => {
   const purchasers = state.users
-    .filter((u) => u.role === "purchaser" && u.status === "Active")
+    .filter((u) => u.role !== "admin" && u.role !== "officer" && u.status === "Active")
     .map((u) => ({ id: u.id, fullName: u.fullName, username: u.username, walletAddress: DEMO_BUYER_WALLET }));
-  if (!purchasers.some((p) => p.username === "hemant")) {
-    purchasers.unshift({ id: "demo-hemant-purchaser", fullName: "Hemant (Purchaser)", username: "hemant", walletAddress: DEMO_BUYER_WALLET });
-  }
   return response.json(purchasers);
 });
 
@@ -379,9 +376,10 @@ app.post("/api/auth/request-code", async (request, response) => {
 
 app.post("/api/auth/verify-code", (request, response) => {
   const { userId, code } = request.body || {};
+  const cleanCode = String(code || "").replace(/\s+/g, "");
   const user = state.users.find((item) => item.id === userId);
   if (!user || !user.loginCodeExpiresAt || Date.parse(user.loginCodeExpiresAt) < Date.now()) return response.status(400).json({ message: "Verification code expired. Request a new code." });
-  if (otpHash(code) !== user.loginCodeHash) return response.status(400).json({ message: "Incorrect verification code." });
+  if (otpHash(cleanCode) !== user.loginCodeHash) return response.status(400).json({ message: "Incorrect verification code." });
   delete user.loginCodeHash;
   delete user.loginCodeExpiresAt;
   const token = createSession(user);
