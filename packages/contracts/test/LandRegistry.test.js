@@ -29,6 +29,14 @@ describe("BaseLandRegistry", function () {
     ).to.be.revertedWith("BaseLandRegistry: duplicate land registration");
   });
 
+  it("prevents the same survey and location being registered under another land ID", async function () {
+    await registry.connect(registrar).registerLand(1, owner.address, "SUR-001", "Jakkur|Yelahanka|Bengaluru North|Bengaluru Urban", 1200);
+
+    await expect(
+      registry.connect(registrar).registerLand(2, newOwner.address, "SUR-001", "Jakkur|Yelahanka|Bengaluru North|Bengaluru Urban", 1200)
+    ).to.be.revertedWith("BaseLandRegistry: duplicate survey and location");
+  });
+
   it("restricts registration and transfer approval to registrars", async function () {
     await expect(
       registry.connect(outsider).registerLand(1, owner.address, "SUR-001", "Pune", 1200)
@@ -110,6 +118,14 @@ describe("OptimizedLandRegistry", function () {
     await expect(
       registry.connect(registrar).registerLand(1, owner.address, metadataHash, 1200)
     ).to.be.revertedWithCustomError(registry, "DuplicateRegistration");
+  });
+
+  it("prevents a duplicate parcel fingerprint under another land ID", async function () {
+    await registry.connect(registrar).registerLand(1, owner.address, metadataHash, 1200);
+
+    await expect(
+      registry.connect(registrar).registerLand(2, newOwner.address, metadataHash, 1200)
+    ).to.be.revertedWithCustomError(registry, "DuplicateParcel");
   });
 
   it("enforces registrar role with custom errors", async function () {

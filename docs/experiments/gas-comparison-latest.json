@@ -1,0 +1,104 @@
+{
+  "generatedAt": "2026-08-12T16:52:36.224Z",
+  "compiler": "0.8.28",
+  "optimizer": {
+    "enabled": true,
+    "runs": 200
+  },
+  "base": {
+    "contract": "BaseLandRegistry",
+    "deploymentGas": 1140011,
+    "operations": [
+      {
+        "operation": "registerLand",
+        "gasUsed": 230426
+      },
+      {
+        "operation": "requestTransfer",
+        "gasUsed": 31702
+      },
+      {
+        "operation": "approveTransfer",
+        "gasUsed": 31078
+      },
+      {
+        "operation": "transferOwnership",
+        "gasUsed": 61316
+      },
+      {
+        "operation": "getLandDetails",
+        "gasUsed": 45354
+      }
+    ]
+  },
+  "optimized": {
+    "contract": "OptimizedLandRegistry",
+    "deploymentGas": 673627,
+    "operations": [
+      {
+        "operation": "registerLand",
+        "gasUsed": 160499
+      },
+      {
+        "operation": "requestTransfer",
+        "gasUsed": 31701
+      },
+      {
+        "operation": "approveTransfer",
+        "gasUsed": 31081
+      },
+      {
+        "operation": "transferOwnership",
+        "gasUsed": 61298
+      },
+      {
+        "operation": "getLandDetails",
+        "gasUsed": 37036
+      }
+    ]
+  },
+  "comparison": [
+    {
+      "operation": "deployment",
+      "baseGas": 1140011,
+      "optimizedGas": 673627,
+      "delta": 466384,
+      "reductionPercent": 40.91
+    },
+    {
+      "operation": "registerLand",
+      "baseGas": 230426,
+      "optimizedGas": 160499,
+      "delta": 69927,
+      "reductionPercent": 30.35
+    },
+    {
+      "operation": "requestTransfer",
+      "baseGas": 31702,
+      "optimizedGas": 31701,
+      "delta": 1,
+      "reductionPercent": 0
+    },
+    {
+      "operation": "approveTransfer",
+      "baseGas": 31078,
+      "optimizedGas": 31081,
+      "delta": -3,
+      "reductionPercent": -0.01
+    },
+    {
+      "operation": "transferOwnership",
+      "baseGas": 61316,
+      "optimizedGas": 61298,
+      "delta": 18,
+      "reductionPercent": 0.03
+    },
+    {
+      "operation": "getLandDetails",
+      "baseGas": 45354,
+      "optimizedGas": 37036,
+      "delta": 8318,
+      "reductionPercent": 18.34
+    }
+  ]
+}

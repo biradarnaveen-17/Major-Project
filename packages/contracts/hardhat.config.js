@@ -2,7 +2,14 @@ require("dotenv").config();
 require("@nomicfoundation/hardhat-toolbox");
 require("hardhat-gas-reporter");
 
-const { RPC_URL, DEPLOYER_PRIVATE_KEY, REPORT_GAS, COINMARKETCAP_API_KEY } = process.env;
+const { RPC_URL, DEPLOYER_PRIVATE_KEY, GANACHE_MNEMONIC, REPORT_GAS, COINMARKETCAP_API_KEY } = process.env;
+const localDemoMnemonic = GANACHE_MNEMONIC || "test test test test test test test test test test test junk";
+const ganacheAccounts = {
+  mnemonic: localDemoMnemonic,
+  path: "m/44'/60'/0'/0",
+  initialIndex: 0,
+  count: 10
+};
 
 module.exports = {
   solidity: {
@@ -17,7 +24,11 @@ module.exports = {
   networks: {
     localhost: {
       url: RPC_URL || "http://127.0.0.1:8545",
-      accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : []
+      accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : ganacheAccounts
+    },
+    ganache: {
+      url: RPC_URL || "http://ganache:8545",
+      accounts: ganacheAccounts
     }
   },
   gasReporter: {

@@ -38,6 +38,7 @@ contract OptimizedLandRegistry {
 
     mapping(address => bool) public registrars;
     mapping(uint256 => Land) private lands;
+    mapping(bytes32 => bool) private registeredParcels;
 
     error NotAdmin();
     error NotRegistrar();
@@ -46,6 +47,7 @@ contract OptimizedLandRegistry {
     error AreaTooLarge();
     error LandNotRegistered();
     error DuplicateRegistration();
+    error DuplicateParcel();
     error NotCurrentOwner();
     error InvalidNewOwner();
     error TransferAlreadyActive();
@@ -92,8 +94,9 @@ contract OptimizedLandRegistry {
     }
 
     /// @notice Registers a new land parcel using a precomputed metadata hash.
-    /// @dev Off-chain systems should hash survey number, location, document URI, and any
-    /// other metadata with a deterministic schema. This avoids storing dynamic strings.
+    /// @dev Off-chain systems should hash a normalized Survey Number and revenue location
+    /// with a deterministic schema. This both avoids dynamic strings and prevents a
+    /// physical parcel being registered twice under two different generated IDs.
     /// @param landId Unique parcel identifier from the land authority.
     /// @param owner Initial legal owner.
     /// @param metadataHash Hash of off-chain land metadata.
@@ -104,12 +107,14 @@ contract OptimizedLandRegistry {
         if (land.registered) revert DuplicateRegistration();
         if (owner == address(0)) revert ZeroAddress();
         if (area == 0) revert InvalidArea();
+        if (registeredParcels[metadataHash]) revert DuplicateParcel();
 
         land.currentOwner = owner;
         land.area = area;
         land.metadataHash = metadataHash;
         land.registered = true;
         land.ownershipHistory.push(owner);
+        registeredParcels[metadataHash] = true;
 
         emit LandRegistered(landId, owner, metadataHash, area);
     }

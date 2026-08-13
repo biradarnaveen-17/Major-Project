@@ -1,4 +1,5 @@
 services:
+  # ─── MongoDB ──────────────────────────────────────────────────────────
   mongo:
     image: mongo:7
     container_name: land-registration-mongo
@@ -11,43 +12,123 @@ services:
       MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-land_registration_research}
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "--quiet"]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
 
+  # ─── Ganache Local Blockchain ─────────────────────────────────────────
   ganache:
     image: trufflesuite/ganache:latest
     container_name: land-registration-ganache
     restart: unless-stopped
     command:
       - "--host=0.0.0.0"
-      - "--chain.chainId=${CHAIN_ID:-1337}"
+      - "--chain.chainId=31337"
+      - "--wallet.mnemonic=test test test test test test test test test test test junk"
       - "--wallet.totalAccounts=10"
       - "--wallet.defaultBalance=1000"
     ports:
       - "${GANACHE_PORT:-8545}:8545"
+    healthcheck:
+      test: >-
+        node -e "
+          const http = require('http');
+          const data = JSON.stringify({jsonrpc:'2.0',method:'eth_blockNumber',params:[],id:1});
+          const req = http.request({hostname:'127.0.0.1',port:8545,method:'POST',headers:{'Content-Type':'application/json','Content-Length':data.length}}, res => {
+            process.exit(res.statusCode === 200 ? 0 : 1);
+          });
+          req.on('error', () => process.exit(1));
+          req.write(data);
+          req.end();
+        "
+      interval: 5s
+      timeout: 5s
+      start_period: 10s
+      retries: 10
 
+  # ─── Contract Deployer (one-shot) ─────────────────────────────────────
+  # Deploys both BaseLandRegistry and OptimizedLandRegistry, then seeds
+  # land ID 9002 as a completed demo transfer.
+  # Uses --network ganache (mnemonic-derived accounts) so the deployer key
+  # always matches a funded Ganache account.
+  deployer:
+    build:
+      context: ./packages/contracts
+      dockerfile: Dockerfile
+    container_name: land-registration-deployer
+    environment:
+      RPC_URL: http://ganache:8545
+      CHAIN_ID: 31337
+      GANACHE_MNEMONIC: "test test test test test test test test test test test junk"
+      DEPLOYMENT_PATH: /app/docs/deployment-local.json
+    depends_on:
+      ganache:
+        condition: service_healthy
+    volumes:
+      - ./docs:/app/docs
+      - deployer_artifacts:/app/artifacts
+    restart: "no"
+
+  # ─── Backend API ──────────────────────────────────────────────────────
+  # Express server: auth (registration, CAPTCHA, email OTP), land requests,
+  # document verification, audit trail, benchmark history, and health.
   backend:
     build:
       context: ./apps/backend
+      dockerfile: Dockerfile
     container_name: land-registration-backend
     restart: unless-stopped
-    env_file:
-      - ./apps/backend/.env
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 5000
+      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-land_admin}:${MONGO_INITDB_ROOT_PASSWORD:-change_me}@mongo:27017/${MONGO_DATABASE:-land_registration_research}?authSource=admin
+      RPC_URL: http://ganache:8545
+      CHAIN_ID: 31337
+      CORS_ORIGIN: "http://localhost:${FRONTEND_PORT:-5173}"
+      JWT_SECRET: ${JWT_SECRET:-docker-dev-jwt-secret-change-in-production}
+      # SMTP is optional. When absent, the email verification code is shown
+      # in the local demo UI for viva demonstration.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
     ports:
       - "${BACKEND_PORT:-5000}:5000"
     depends_on:
-      - mongo
-      - ganache
+      mongo:
+        condition: service_healthy
+      ganache:
+        condition: service_healthy
+    volumes:
+      - backend_data:/app/data
+      - ./docs:/app/docs:ro
 
+  # ─── Frontend (React + Vite) ──────────────────────────────────────────
+  # Multi-portal SPA: Farmer, Purchaser, Revenue Officer, and Admin.
+  # Served as a static production build.
   frontend:
     build:
       context: ./apps/frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_APP_NAME: "Land Registration Gas Analysis"
+        VITE_API_BASE_URL: "http://localhost:${BACKEND_PORT:-5000}"
+        VITE_CHAIN_ID: "31337"
+        VITE_RPC_URL: "http://localhost:${GANACHE_PORT:-8545}"
     container_name: land-registration-frontend
     restart: unless-stopped
-    env_file:
-      - ./apps/frontend/.env
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   mongo_data:
+  backend_data:
+  deployer_artifacts:

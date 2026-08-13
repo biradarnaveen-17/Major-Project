@@ -6,8 +6,11 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:local": "hardhat run scripts/deploy.js --network ganache",
     "gas": "REPORT_GAS=true hardhat test",
+    "compare:gas": "hardhat run scripts/compareGas.js",
+    "benchmark:loads": "hardhat run scripts/benchmarkLoads.js",
+    "demo:seed": "hardhat run scripts/seedDemo.js --network ganache",
     "lint": "solhint 'contracts/**/*.sol'",
     "clean": "hardhat clean"
   },

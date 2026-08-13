@@ -29,7 +29,12 @@ Thumbs.db
 
 # Docker volumes and local data
 .docker-data/
+apps/backend/data/
 
 # Hardhat and Ganache
 gas-report.txt
 mnemonic.txt
+packages/contracts/.test-hardhat-appdata/
+packages/contracts/.major-demo-appdata/
+packages/contracts/.demo-hardhat-appdata/
+packages/contracts/.check-hardhat-appdata/

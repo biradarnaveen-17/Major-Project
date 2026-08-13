@@ -37,6 +37,10 @@ contract BaseLandRegistry {
     /// @notice Land records keyed by unique land ID.
     mapping(uint256 => Land) private lands;
 
+    /// @notice Canonical Survey No. and revenue-location fingerprints already registered.
+    /// @dev Prevents the same physical parcel being registered again under a different generated ID.
+    mapping(bytes32 => bool) private registeredParcels;
+
     event RegistrarUpdated(address indexed registrar, bool enabled);
     event LandRegistered(
         uint256 indexed landId,
@@ -81,7 +85,7 @@ contract BaseLandRegistry {
     }
 
     /// @notice Registers a new land parcel for an owner.
-    /// @dev Duplicate registration is prevented by checking the registered flag.
+    /// @dev Duplicate registration is prevented both by land ID and by survey/location fingerprint.
     /// @param landId Unique parcel identifier from the land authority.
     /// @param owner Initial legal owner.
     /// @param surveyNumber Human-readable survey number.
@@ -97,6 +101,8 @@ contract BaseLandRegistry {
         require(!lands[landId].registered, "BaseLandRegistry: duplicate land registration");
         require(owner != address(0), "BaseLandRegistry: owner is zero address");
         require(area > 0, "BaseLandRegistry: area must be positive");
+        bytes32 parcelFingerprint = keccak256(abi.encodePacked(surveyNumber, "|", location));
+        require(!registeredParcels[parcelFingerprint], "BaseLandRegistry: duplicate survey and location");
 
         Land storage land = lands[landId];
         land.landId = landId;
@@ -107,6 +113,7 @@ contract BaseLandRegistry {
         land.registered = true;
         land.transferStatus = TransferStatus.None;
         land.ownershipHistory.push(owner);
+        registeredParcels[parcelFingerprint] = true;
 
         emit LandRegistered(landId, owner, surveyNumber, location, area);
     }

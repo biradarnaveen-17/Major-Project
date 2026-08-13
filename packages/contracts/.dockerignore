@@ -1,0 +1,14 @@
+node_modules
+artifacts
+cache
+*.log
+.env
+.env.*
+!.env.example
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.check-hardhat-appdata
+.test-hardhat-appdata
+.major-demo-appdata
+Project
