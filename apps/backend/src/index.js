@@ -367,7 +367,7 @@ app.post("/api/auth/request-code", async (request, response) => {
     const delivery = await deliverLoginCode(user, code);
     addAudit({ action: "Email sign-in code issued", landId: "Identity", actor: user.fullName, detail: `Code issued to ${maskEmail(user.email)}` });
     saveState();
-    return response.json({ userId: user.id, maskedEmail: maskEmail(user.email), demoCode: code, message: "Verification code sent to your email address." });
+    return response.json({ userId: user.id, maskedEmail: maskEmail(user.email), message: "Verification code sent to your email address." });
   } catch (error) {
     console.error("SMTP delivery error:", error);
     delete user.loginCodeHash;
