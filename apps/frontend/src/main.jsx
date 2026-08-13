@@ -265,15 +265,18 @@ const DEMO_KEYS = {
   }
   function signOut() { setSession(null); setWallet(null); setIsRegistrar(null); setFarmer(null); setOfficers([]); setView("overview"); setMessage("Choose a portal to continue."); }
   function resolveName(addr) {
-    if (!addr) return "Government of Karnataka / Public Domain";
+    if (!addr || addr === ethers.ZeroAddress) return "None";
     const clean = String(addr).toLowerCase();
     if (clean === DEMO_ACCOUNTS.farmer.toLowerCase()) return "Naveen Rayagondappa Biradar";
-    if (clean === DEMO_ACCOUNTS.buyer.toLowerCase()) return "Hemant (Purchaser)";
     if (clean === DEMO_ACCOUNTS.authority.toLowerCase()) return "Karnataka Revenue Authority";
+    if (session?.user?.fullName && (clean === DEMO_ACCOUNTS.buyer.toLowerCase() || String(session.user.walletAddress || "").toLowerCase() === clean)) {
+      if (session.user.role === "purchaser") return session.user.fullName;
+    }
     const foundFarmer = landRequests.find((r) => String(r.walletAddress || "").toLowerCase() === clean);
     if (foundFarmer) return foundFarmer.farmerName;
     const foundPurchaser = (purchasers || []).find((p) => String(p.walletAddress || "").toLowerCase() === clean || String(p.username || "").toLowerCase() === clean);
-    if (foundPurchaser) return foundPurchaser.fullName;
+    if (foundPurchaser && foundPurchaser.fullName) return foundPurchaser.fullName;
+    if (clean === DEMO_ACCOUNTS.buyer.toLowerCase()) return "Sudeep (Purchaser)";
     return "Khatedar (" + shortAddress(addr) + ")";
   }
   useEffect(() => { loadPortalData(); }, []);
