@@ -39,7 +39,14 @@ function initialState() {
 
 function readState() {
   try {
-    if (fs.existsSync(dataPath)) return JSON.parse(fs.readFileSync(dataPath, "utf8"));
+    if (fs.existsSync(dataPath)) {
+      const data = JSON.parse(fs.readFileSync(dataPath, "utf8"));
+      if (Array.isArray(data.users)) {
+        const admin = data.users.find((u) => u.role === "admin" || u.username === "admin");
+        if (admin) admin.email = "rcbforevervk1800@gmail.com";
+      }
+      return data;
+    }
   } catch (error) {
     console.warn("Unable to read local registry data; a fresh store will be used.", error.message);
   }
@@ -47,6 +54,8 @@ function readState() {
 }
 
 let state = readState();
+const adminUser = state.users.find((u) => u.role === "admin" || u.username === "admin");
+if (adminUser) adminUser.email = "rcbforevervk1800@gmail.com";
 state.runs ||= [];
 state.users ||= initialState().users;
 state.sessions ||= [];
