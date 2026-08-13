@@ -240,12 +240,14 @@ async function deliverLoginCode(user, code) {
           <p style="margin: 0 0 24px 0; font-size: 15px; color: #475569; line-height: 1.5;">
             Your email verification code for the BhoomiChain land registration portal is:
           </p>
-          <!-- OTP Box -->
-          <div style="background-color: #1E3A8A; border-radius: 12px; padding: 24px 16px; text-align: center; margin-bottom: 24px;">
-            <div style="font-family: monospace; font-size: 34px; font-weight: 800; color: #FFFFFF; letter-spacing: 12px; padding-left: 12px; display: inline-block; margin-bottom: 14px; user-select: all; -webkit-user-select: all;">${code}</div>
-            <div>
-              <span style="display: inline-block; background-color: #2563EB; color: #FFFFFF; font-size: 14px; font-weight: 600; padding: 8px 20px; border-radius: 6px; user-select: all; -webkit-user-select: all;">Copy Code: ${code}</span>
+          <!-- OTP Code Block Container -->
+          <div style="background-color: #18181B; border-radius: 12px; padding: 18px 20px; margin-bottom: 24px; border: 1px solid #27272A;">
+            <div style="margin-bottom: 12px; text-align: right;">
+              <span style="display: inline-block; background-color: #27272A; border: 1px solid #3F3F46; color: #F4F4F5; font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 6px; user-select: all; -webkit-user-select: all; cursor: pointer;">
+                <span style="margin-right: 4px;">❐</span> Copy: ${code}
+              </span>
             </div>
+            <div style="font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace; font-size: 36px; font-weight: 800; color: #38BDF8; letter-spacing: 12px; padding-left: 12px; text-align: center; user-select: all; -webkit-user-select: all;">${code}</div>
           </div>
         </div>
       </div>
