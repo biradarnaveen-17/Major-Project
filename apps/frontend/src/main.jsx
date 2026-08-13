@@ -166,7 +166,7 @@ function App() {
   const [form, setForm] = useState({ landId: DEFAULT_DEMO_LAND_ID, owner: "", survey: "12/3A", district: "Bengaluru Urban", taluk: "Bengaluru North", hobli: "Yelahanka", village: "Jakkur", area: "48", buyer: "", lookupId: "9002" });
   const [purchasers, setPurchasers] = useState([]);
   const provider = useMemo(() => wallet?.provider || new ethers.JsonRpcProvider(RPC_URL), [wallet]);
-  const gasRows = report?.comparison || [];
+  const gasRows = report?.comparison || report?.rows || [];
   const lifecycleRows = gasRows.filter((row) => !["deployment", "getLandDetails"].includes(row.operation));
   const totalBaseLifecycleGas = lifecycleRows.reduce((sum, row) => sum + row.baseGas, 0);
   const totalOptimizedLifecycleGas = lifecycleRows.reduce((sum, row) => sum + row.optimizedGas, 0);
