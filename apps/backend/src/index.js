@@ -305,11 +305,8 @@ const DEMO_BUYER_WALLET = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 
 app.get("/api/purchasers", (_request, response) => {
   const purchasers = state.users
-    .filter((u) => u.role === "purchaser" && u.status === "Active")
+    .filter((u) => u.role !== "admin" && u.role !== "officer" && u.status === "Active")
     .map((u) => ({ id: u.id, fullName: u.fullName, username: u.username, walletAddress: DEMO_BUYER_WALLET }));
-  if (!purchasers.some((p) => p.username === "hemant")) {
-    purchasers.unshift({ id: "demo-hemant-purchaser", fullName: "Hemant (Purchaser)", username: "hemant", walletAddress: DEMO_BUYER_WALLET });
-  }
   return response.json(purchasers);
 });
 
