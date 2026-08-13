@@ -242,8 +242,10 @@ async function deliverLoginCode(user, code) {
           </p>
           <!-- OTP Box -->
           <div style="background-color: #1E3A8A; border-radius: 12px; padding: 24px 16px; text-align: center; margin-bottom: 24px;">
-            <div style="font-family: monospace; font-size: 34px; font-weight: 800; color: #FFFFFF; letter-spacing: 12px; padding-left: 12px; display: inline-block; user-select: all; -webkit-user-select: all;">${code}</div>
-            <p style="margin: 10px 0 0 0; font-size: 12px; color: #93C5FD;">Highlight or double-click to copy code (no spaces)</p>
+            <div style="font-family: monospace; font-size: 34px; font-weight: 800; color: #FFFFFF; letter-spacing: 12px; padding-left: 12px; display: inline-block; margin-bottom: 14px; user-select: all; -webkit-user-select: all;">${code}</div>
+            <div>
+              <span style="display: inline-block; background-color: #2563EB; color: #FFFFFF; font-size: 14px; font-weight: 600; padding: 8px 20px; border-radius: 6px; user-select: all; -webkit-user-select: all;">Copy Code: ${code}</span>
+            </div>
           </div>
         </div>
       </div>
