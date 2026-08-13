@@ -212,7 +212,6 @@ async function deliverLoginCode(user, code) {
     auth: { user: process.env.SMTP_USER, pass }
   });
 
-  const formattedCode = String(code).split("").join(" ");
   const recipientName = user.fullName || user.username || "User";
 
   const html = `
@@ -242,10 +241,9 @@ async function deliverLoginCode(user, code) {
             Your email verification code for the BhoomiChain land registration portal is:
           </p>
           <!-- OTP Box -->
-          <div style="background-color: #1E3A8A; border-radius: 10px; padding: 20px 16px; text-align: center; margin-bottom: 24px;">
-            <span style="font-family: 'Courier New', Courier, monospace, sans-serif; font-size: 32px; font-weight: 700; color: #FFFFFF; letter-spacing: 14px; padding-left: 14px; display: inline-block;">
-              ${formattedCode}
-            </span>
+          <div style="background-color: #1E3A8A; border-radius: 12px; padding: 24px 16px; text-align: center; margin-bottom: 24px;">
+            <div style="font-family: monospace; font-size: 34px; font-weight: 800; color: #FFFFFF; letter-spacing: 12px; padding-left: 12px; display: inline-block; user-select: all; -webkit-user-select: all;">${code}</div>
+            <p style="margin: 10px 0 0 0; font-size: 12px; color: #93C5FD;">Highlight or double-click to copy code (no spaces)</p>
           </div>
         </div>
       </div>
@@ -376,9 +374,10 @@ app.post("/api/auth/request-code", async (request, response) => {
 
 app.post("/api/auth/verify-code", (request, response) => {
   const { userId, code } = request.body || {};
+  const cleanCode = String(code || "").replace(/\s+/g, "");
   const user = state.users.find((item) => item.id === userId);
   if (!user || !user.loginCodeExpiresAt || Date.parse(user.loginCodeExpiresAt) < Date.now()) return response.status(400).json({ message: "Verification code expired. Request a new code." });
-  if (otpHash(code) !== user.loginCodeHash) return response.status(400).json({ message: "Incorrect verification code." });
+  if (otpHash(cleanCode) !== user.loginCodeHash) return response.status(400).json({ message: "Incorrect verification code." });
   delete user.loginCodeHash;
   delete user.loginCodeExpiresAt;
   const token = createSession(user);
