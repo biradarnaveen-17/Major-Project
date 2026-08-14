@@ -46,6 +46,37 @@ function displayError(error, registry) {
 }
 function shortAddress(value) { return value ? `${value.slice(0, 6)}...${value.slice(-4)}` : "Not connected"; }
 function parcelMetadata(survey, district, taluk, hobli, village) { return [survey, village, hobli, taluk, district].map((value) => String(value || "").trim().toLowerCase()).join("|"); }
+function generateClientCaptcha() {
+  const chars = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+  let text = "";
+  for (let i = 0; i < 5; i++) text += chars[Math.floor(Math.random() * chars.length)];
+  const width = 200, height = 60;
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">`;
+  svg += `<rect width="${width}" height="${height}" fill="#f0f0f0"/>`;
+  for (let i = 0; i < 6; i++) {
+    const x1 = Math.floor(Math.random() * width), y1 = Math.floor(Math.random() * height);
+    const x2 = Math.floor(Math.random() * width), y2 = Math.floor(Math.random() * height);
+    const r = 100 + Math.floor(Math.random() * 100), g = 100 + Math.floor(Math.random() * 100), b = 100 + Math.floor(Math.random() * 100);
+    svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgb(${r},${g},${b})" stroke-width="1.5"/>`;
+  }
+  for (let i = 0; i < 18; i++) {
+    const cx = Math.floor(Math.random() * width), cy = Math.floor(Math.random() * height);
+    const cr = 1 + Math.floor(Math.random() * 3);
+    const r = 100 + Math.floor(Math.random() * 100), g = 100 + Math.floor(Math.random() * 100), b = 100 + Math.floor(Math.random() * 100);
+    svg += `<circle cx="${cx}" cy="${cy}" r="${cr}" fill="rgb(${r},${g},${b})"/>`;
+  }
+  for (let i = 0; i < text.length; i++) {
+    const fontSize = 28 + Math.floor(Math.random() * 8);
+    const rotation = Math.floor(Math.random() * 30) - 15;
+    const x = 20 + i * 35;
+    const y = 38 + Math.floor(Math.random() * 12) - 6;
+    const r = 20 + Math.floor(Math.random() * 80), g = 20 + Math.floor(Math.random() * 80), b = 20 + Math.floor(Math.random() * 80);
+    svg += `<text x="${x}" y="${y}" font-size="${fontSize}" font-family="monospace" font-weight="bold" fill="rgb(${r},${g},${b})" transform="rotate(${rotation},${x},${y})">${text[i]}</text>`;
+  }
+  svg += `</svg>`;
+  return { captchaId: "client-" + Date.now() + "-" + Math.random().toString(36).slice(2), answer: text, image: `data:image/svg+xml;base64,${btoa(svg)}` };
+}
+
 function LoginScreen({ onLogin }) {
   const [mode, setMode] = useState("login");
   const [registerForm, setRegisterForm] = useState({ role: "farmer", fullName: "", username: "", gender: "", dateOfBirth: "", aadhaarNumber: "", mobile: "", email: "" });
@@ -57,11 +88,42 @@ function LoginScreen({ onLogin }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const apiRequest = async (path, options) => { const response = await fetch(`${API_URL}${path}`, options); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.message || "Request failed."); return body; };
-  const refreshCaptcha = async () => { try { setCaptcha(await apiRequest("/api/auth/captcha")); setLoginForm((current) => ({ ...current, captchaAnswer: "" })); } catch (requestError) { setError(requestError.message); } };
+  const refreshCaptcha = async () => {
+    try {
+      setCaptcha(await apiRequest("/api/auth/captcha"));
+      setLoginForm((current) => ({ ...current, captchaAnswer: "" }));
+    } catch {
+      setCaptcha(generateClientCaptcha());
+      setLoginForm((current) => ({ ...current, captchaAnswer: "" }));
+    }
+  };
   useEffect(() => { refreshCaptcha(); }, []);
   const updateRegistration = (key) => (event) => setRegisterForm((current) => ({ ...current, [key]: event.target.value }));
   const submitRegistration = async (event) => { event.preventDefault(); setError(""); try { const result = await apiRequest("/api/auth/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(registerForm) }); setMessage(`${result.user.fullName} registered successfully. Sign in using ${result.user.username} or ${result.user.email}.`); setLoginForm({ identifier: result.user.email, captchaAnswer: "" }); setMode("login"); await refreshCaptcha(); } catch (requestError) { setError(requestError.message); } };
-  const requestCode = async (event) => { event.preventDefault(); setError(""); if (!captcha) return; try { const result = await apiRequest("/api/auth/request-code", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...loginForm, captchaId: captcha.captchaId }) }); setPendingLogin(result); setMessage(result.message); } catch (requestError) { setError(requestError.message); await refreshCaptcha(); } };
+  const requestCode = async (event) => {
+    event.preventDefault();
+    setError("");
+    if (!captcha) return;
+    if (captcha.captchaId.startsWith("client-")) {
+      if (loginForm.captchaAnswer.trim().toLowerCase() !== captcha.answer.toLowerCase()) {
+        setError("CAPTCHA answer is incorrect. Try again.");
+        refreshCaptcha();
+        return;
+      }
+    }
+    try {
+      const result = await apiRequest("/api/auth/request-code", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...loginForm, captchaId: captcha.captchaId, captchaAnswer: loginForm.captchaAnswer })
+      });
+      setPendingLogin(result);
+      setMessage(result.message);
+    } catch (requestError) {
+      setError(requestError.message);
+      await refreshCaptcha();
+    }
+  };
   const verifyCode = async (event) => { event.preventDefault(); setError(""); try { const result = await apiRequest("/api/auth/verify-code", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ userId: pendingLogin.userId, code: code.replace(/\D/g, "") }) }); await onLogin(result); } catch (requestError) { setError(requestError.message); } };
   return <main className="login-shell"><section className="login-intro"><div className="brand"><span className="brand-mark">ಭೂ</span><div><strong>BhoomiChain</strong><small>Karnataka land-records demonstrator</small></div></div><p className="eyebrow">SECURE ROLE-BASED ACCESS</p><h1>One land workflow.<br />Verified identities.</h1><p>Farmer and Purchaser accounts register with identity details. Every sign-in requires username or email, a CAPTCHA challenge, and a one-time email code.</p><div className="login-flow"><span>Public account registration</span><span>CAPTCHA-protected sign in</span><span>Email-code verification</span><span>Role-limited workspace</span></div></section><section className="login-card"><div className="auth-tabs"><button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Sign in</button><button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>Create account</button></div>{message && <p className="auth-message">{message}</p>}{error && <p className="login-error">{error}</p>}{mode === "register" ? <form onSubmit={submitRegistration}><p className="eyebrow">PUBLIC REGISTRATION</p><h2>Farmer or Purchaser account</h2><SelectField label="Account type" value={registerForm.role} onChange={updateRegistration("role")}><option value="farmer">Farmer / land owner</option><option value="purchaser">Purchaser</option></SelectField><div className="form-grid"><Field label="Full name" required value={registerForm.fullName} onChange={updateRegistration("fullName")} /><Field label="Username" required value={registerForm.username} onChange={updateRegistration("username")} placeholder="e.g. ramesh.gowda" /><SelectField label="Gender" required value={registerForm.gender} onChange={updateRegistration("gender")}><option value="">Select</option><option>Male</option><option>Female</option><option>Other</option><option>Prefer not to say</option></SelectField><Field label="Date of birth" required type="date" value={registerForm.dateOfBirth} onChange={updateRegistration("dateOfBirth")} /><Field label="Aadhaar number" required inputMode="numeric" maxLength="12" value={registerForm.aadhaarNumber} onChange={updateRegistration("aadhaarNumber")} /><Field label="Mobile number" required inputMode="numeric" maxLength="10" value={registerForm.mobile} onChange={updateRegistration("mobile")} /><Field label="Email address" required type="email" value={registerForm.email} onChange={updateRegistration("email")} /></div><p className="hint">Aadhaar is validated and stored only as a secure hash with the last four digits; it is never put on blockchain.</p><button className="login-button" type="submit">Create account</button></form> : !pendingLogin ? <form onSubmit={requestCode}><p className="eyebrow">PASSWORDLESS SIGN IN</p><h2>Verify your identity</h2><Field label="Username or email address" required value={loginForm.identifier} onChange={(event) => setLoginForm((current) => ({ ...current, identifier: event.target.value }))} /><div className="captcha-row">{captcha?.image ? <img src={captcha.image} alt="CAPTCHA" className="captcha-image" /> : <strong>Loading CAPTCHA...</strong>}<button type="button" className="text-button" onClick={refreshCaptcha}>Refresh</button></div><Field label="Enter the characters shown above" required value={loginForm.captchaAnswer} onChange={(event) => setLoginForm((current) => ({ ...current, captchaAnswer: event.target.value }))} /><button className="login-button" type="submit">Send email verification code</button><p className="hint">Revenue Officers cannot self-register; only the System Administrator can create them.</p></form> : <form onSubmit={verifyCode}><p className="eyebrow">EMAIL VERIFICATION</p><h2>Enter the one-time code</h2><p className="hint">A code was sent to {pendingLogin.maskedEmail}. It expires in 10 minutes.</p><Field label="6-digit verification code" required inputMode="numeric" maxLength="6" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} /><button className="login-button" type="submit">Verify and sign in</button><button type="button" className="text-button" onClick={() => { setPendingLogin(null); refreshCaptcha(); }}>Use another account</button></form>}<p className="login-note">Academic local demo — not an official Government of Karnataka portal.</p></section></main>;
 }
