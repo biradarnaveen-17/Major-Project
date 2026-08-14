@@ -53,16 +53,17 @@ function readState() {
   return initialState();
 }
 
-let state = readState();
-const adminUser = state.users.find((u) => u.role === "admin" || u.username === "admin");
-if (adminUser) adminUser.email = "rcbforevervk1800@gmail.com";
-state.runs ||= [];
+let state = readState() || initialState();
 state.users ||= initialState().users;
+state.runs ||= [];
 state.sessions ||= [];
 state.farmers ||= [];
 state.landRequests ||= [];
 state.documents ||= [];
 state.audit ||= [];
+
+const adminUser = state.users.find((u) => u.role === "admin" || u.username === "admin");
+if (adminUser) adminUser.email = "rcbforevervk1800@gmail.com";
 
 function saveState() {
   fs.mkdirSync(path.dirname(dataPath), { recursive: true });
