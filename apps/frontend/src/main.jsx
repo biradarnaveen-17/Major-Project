@@ -3,9 +3,9 @@ import { createRoot } from "react-dom/client";
 import { ethers } from "ethers";
 import "./styles.css";
 
-const API_URL = "https://bfc7315dacec0864-152-57-117-77.serveousercontent.com";
-const RPC_URL = "https://polygon-amoy-bor-rpc.publicnode.com";
-const ADDRESSES = { base: "0x3746E1A6029902024bF4B85a80FAF01C1E3FAEfD", optimized: "0xB3C7d1C58BB098F4baf5B5818c38688146643036" };
+const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+const RPC_URL = import.meta.env.VITE_RPC_URL || "http://127.0.0.1:8545";
+const ADDRESSES = { base: import.meta.env.VITE_BASE_CONTRACT_ADDRESS || "0x5FbDB2315678afecb367f032d93F642f64180aa3", optimized: import.meta.env.VITE_OPTIMIZED_CONTRACT_ADDRESS || "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512" };
 const DEMO_ACCOUNTS = { authority: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", buyer: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", farmer: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC" };
 const DEFAULT_DEMO_LAND_ID = String(Date.now());
 const NAV = [["overview", "Dashboard"], ["farmer", "My land & registration"], ["agent", "Revenue officer desk"], ["registry", "Land registration"], ["transfer", "Mutation & transfer"], ["documents", "RTC & documents"], ["accounts", "Officer accounts"], ["analytics", "Gas analysis"], ["audit", "Audit register"]];
@@ -56,23 +56,8 @@ function LoginScreen({ onLogin }) {
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const apiRequest = async (path, options = {}) => {
-    const headers = { ...options.headers, "bypass-tunnel-reminder": "true" };
-    const response = await fetch(`${API_URL}${path}`, { ...options, headers });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.message || "Request failed.");
-    return body;
-  };
-  const refreshCaptcha = async () => {
-    try {
-      setCaptcha(await apiRequest("/api/auth/captcha"));
-      setLoginForm((current) => ({ ...current, captchaAnswer: "" }));
-    } catch {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60"><rect width="200" height="60" fill="#f8edda"/><text x="40" y="40" font-size="30" font-family="monospace" font-weight="bold" fill="#702334">7B2K9</text></svg>`;
-      setCaptcha({ captchaId: "fallback-id", image: `data:image/svg+xml;base64,${btoa(svg)}` });
-      setLoginForm((current) => ({ ...current, captchaAnswer: "" }));
-    }
-  };
+  const apiRequest = async (path, options) => { const response = await fetch(`${API_URL}${path}`, options); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.message || "Request failed."); return body; };
+  const refreshCaptcha = async () => { try { setCaptcha(await apiRequest("/api/auth/captcha")); setLoginForm((current) => ({ ...current, captchaAnswer: "" })); } catch (requestError) { setError(requestError.message); } };
   useEffect(() => { refreshCaptcha(); }, []);
   const updateRegistration = (key) => (event) => setRegisterForm((current) => ({ ...current, [key]: event.target.value }));
   const submitRegistration = async (event) => { event.preventDefault(); setError(""); try { const result = await apiRequest("/api/auth/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(registerForm) }); setMessage(`${result.user.fullName} registered successfully. Sign in using ${result.user.username} or ${result.user.email}.`); setLoginForm({ identifier: result.user.email, captchaAnswer: "" }); setMode("login"); await refreshCaptcha(); } catch (requestError) { setError(requestError.message); } };
