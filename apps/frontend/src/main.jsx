@@ -46,37 +46,6 @@ function displayError(error, registry) {
 }
 function shortAddress(value) { return value ? `${value.slice(0, 6)}...${value.slice(-4)}` : "Not connected"; }
 function parcelMetadata(survey, district, taluk, hobli, village) { return [survey, village, hobli, taluk, district].map((value) => String(value || "").trim().toLowerCase()).join("|"); }
-function generateClientCaptcha() {
-  const chars = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
-  let text = "";
-  for (let i = 0; i < 5; i++) text += chars[Math.floor(Math.random() * chars.length)];
-  const width = 200, height = 60;
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">`;
-  svg += `<rect width="${width}" height="${height}" fill="#f0f0f0"/>`;
-  for (let i = 0; i < 6; i++) {
-    const x1 = Math.floor(Math.random() * width), y1 = Math.floor(Math.random() * height);
-    const x2 = Math.floor(Math.random() * width), y2 = Math.floor(Math.random() * height);
-    const r = 100 + Math.floor(Math.random() * 100), g = 100 + Math.floor(Math.random() * 100), b = 100 + Math.floor(Math.random() * 100);
-    svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgb(${r},${g},${b})" stroke-width="1.5"/>`;
-  }
-  for (let i = 0; i < 18; i++) {
-    const cx = Math.floor(Math.random() * width), cy = Math.floor(Math.random() * height);
-    const cr = 1 + Math.floor(Math.random() * 3);
-    const r = 100 + Math.floor(Math.random() * 100), g = 100 + Math.floor(Math.random() * 100), b = 100 + Math.floor(Math.random() * 100);
-    svg += `<circle cx="${cx}" cy="${cy}" r="${cr}" fill="rgb(${r},${g},${b})"/>`;
-  }
-  for (let i = 0; i < text.length; i++) {
-    const fontSize = 28 + Math.floor(Math.random() * 8);
-    const rotation = Math.floor(Math.random() * 30) - 15;
-    const x = 20 + i * 35;
-    const y = 38 + Math.floor(Math.random() * 12) - 6;
-    const r = 20 + Math.floor(Math.random() * 80), g = 20 + Math.floor(Math.random() * 80), b = 20 + Math.floor(Math.random() * 80);
-    svg += `<text x="${x}" y="${y}" font-size="${fontSize}" font-family="monospace" font-weight="bold" fill="rgb(${r},${g},${b})" transform="rotate(${rotation},${x},${y})">${text[i]}</text>`;
-  }
-  svg += `</svg>`;
-  return { captchaId: "client-" + Date.now() + "-" + Math.random().toString(36).slice(2), answer: text, image: `data:image/svg+xml;base64,${btoa(svg)}` };
-}
-
 function LoginScreen({ onLogin }) {
   const [mode, setMode] = useState("login");
   const [registerForm, setRegisterForm] = useState({ role: "farmer", fullName: "", username: "", gender: "", dateOfBirth: "", aadhaarNumber: "", mobile: "", email: "" });
@@ -88,15 +57,7 @@ function LoginScreen({ onLogin }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const apiRequest = async (path, options) => { const response = await fetch(`${API_URL}${path}`, options); const body = await response.json().catch(() => ({})); if (!response.ok) throw new Error(body.message || "Request failed."); return body; };
-  const refreshCaptcha = async () => {
-    try {
-      setCaptcha(await apiRequest("/api/auth/captcha"));
-      setLoginForm((current) => ({ ...current, captchaAnswer: "" }));
-    } catch {
-      setCaptcha(generateClientCaptcha());
-      setLoginForm((current) => ({ ...current, captchaAnswer: "" }));
-    }
-  };
+  const refreshCaptcha = async () => { try { setCaptcha(await apiRequest("/api/auth/captcha")); setLoginForm((current) => ({ ...current, captchaAnswer: "" })); } catch (requestError) { setError(requestError.message); } };
   useEffect(() => { refreshCaptcha(); }, []);
   const updateRegistration = (key) => (event) => setRegisterForm((current) => ({ ...current, [key]: event.target.value }));
   const submitRegistration = async (event) => { event.preventDefault(); setError(""); try { const result = await apiRequest("/api/auth/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(registerForm) }); setMessage(`${result.user.fullName} registered successfully. Sign in using ${result.user.username} or ${result.user.email}.`); setLoginForm({ identifier: result.user.email, captchaAnswer: "" }); setMode("login"); await refreshCaptcha(); } catch (requestError) { setError(requestError.message); } };
@@ -104,13 +65,6 @@ function LoginScreen({ onLogin }) {
     event.preventDefault();
     setError("");
     if (!captcha) return;
-    if (captcha.captchaId.startsWith("client-")) {
-      if (loginForm.captchaAnswer.trim().toLowerCase() !== captcha.answer.toLowerCase()) {
-        setError("CAPTCHA answer is incorrect. Try again.");
-        refreshCaptcha();
-        return;
-      }
-    }
     try {
       const result = await apiRequest("/api/auth/request-code", {
         method: "POST",
@@ -119,27 +73,14 @@ function LoginScreen({ onLogin }) {
       });
       setPendingLogin(result);
       setMessage(result.message);
-    } catch {
-      const generatedCode = String(Math.floor(100000 + Math.random() * 900000));
-      const masked = loginForm.identifier.includes("@") ? maskEmail(loginForm.identifier) : "registered email address";
-      const fallbackResult = {
-        userId: "demo-user",
-        maskedEmail: masked,
-        demoCode: generatedCode,
-        message: `Verification code sent to ${masked}.`
-      };
-      setPendingLogin(fallbackResult);
-      setMessage(fallbackResult.message);
+    } catch (requestError) {
+      setError(requestError.message);
+      await refreshCaptcha();
     }
   };
   const verifyCode = async (event) => {
     event.preventDefault();
     setError("");
-    if (pendingLogin?.demoCode && (code.trim() === pendingLogin.demoCode || code.trim().length === 6)) {
-      const role = loginForm.identifier.toLowerCase() === "admin" ? "admin" : "farmer";
-      await onLogin({ token: "demo-token", user: { id: "demo-user", role, fullName: loginForm.identifier || "Citizen", username: loginForm.identifier || "citizen", email: loginForm.identifier || "citizen@example.com" } });
-      return;
-    }
     try {
       const result = await apiRequest("/api/auth/verify-code", {
         method: "POST",
@@ -148,11 +89,6 @@ function LoginScreen({ onLogin }) {
       });
       await onLogin(result);
     } catch (requestError) {
-      if (pendingLogin?.demoCode) {
-        const role = loginForm.identifier.toLowerCase() === "admin" ? "admin" : "farmer";
-        await onLogin({ token: "demo-token", user: { id: "demo-user", role, fullName: loginForm.identifier || "Citizen", username: loginForm.identifier || "citizen", email: loginForm.identifier || "citizen@example.com" } });
-        return;
-      }
       setError(requestError.message);
     }
   };
