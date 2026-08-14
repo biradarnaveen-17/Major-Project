@@ -32,10 +32,11 @@ module.exports = {
       url: RPC_URL || "http://ganache:8545",
       accounts: ganacheAccounts
     },
-    amoy: {
-      url: process.env.POLYGON_AMOY_RPC || "https://polygon-amoy-bor-rpc.publicnode.com",
-      accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : []
-    }
+polygonAmoy: {
+      url: process.env.POLYGON_AMOY_RPC_URL || "https://rpc-amoy.polygon.technology",
+      chainId: 80002,
+      accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : ganacheAccounts
+}
   },
   gasReporter: {
     enabled: REPORT_GAS === "true",

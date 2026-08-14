@@ -19,21 +19,13 @@ function initialState() {
   return {
     runs: [],
     users: [
-      { id: "system-admin", role: "admin", fullName: "Project Administrator", username: "admin", email: "rcbforevervk1800@gmail.com", gender: "Not specified", dateOfBirth: "1990-01-01", aadhaarHash: null, aadhaarLast4: null, mobile: "9000000000", status: "Active", createdAt: "2026-08-10T09:00:00.000Z" },
-      { id: "demo-hemant", role: "purchaser", fullName: "Hemant (Purchaser)", username: "hemant", email: "hemant@example.com", gender: "Male", dateOfBirth: "1992-05-15", aadhaarHash: "hash-hemant", aadhaarLast4: "1234", mobile: "9876543210", status: "Active", createdAt: "2026-08-10T09:05:00.000Z" },
-      { id: "demo-kavitha", role: "purchaser", fullName: "Kavitha Gowda", username: "kavitha.g", email: "kavitha@example.com", gender: "Female", dateOfBirth: "1994-08-20", aadhaarHash: "hash-kavitha", aadhaarLast4: "5678", mobile: "9876543211", status: "Active", createdAt: "2026-08-10T09:10:00.000Z" },
-      { id: "demo-rohan", role: "purchaser", fullName: "Rohan Kumar", username: "rohan.k", email: "rohan@example.com", gender: "Male", dateOfBirth: "1988-12-10", aadhaarHash: "hash-rohan", aadhaarLast4: "9012", mobile: "9876543212", status: "Active", createdAt: "2026-08-10T09:15:00.000Z" }
+      { id: "system-admin", role: "admin", fullName: "Project Administrator", username: "admin", email: "rcbforevervk1800@gmail.com", gender: "Not specified", dateOfBirth: "1990-01-01", aadhaarHash: null, aadhaarLast4: null, mobile: "9000000000", status: "Active", createdAt: "2026-08-10T09:00:00.000Z" }
     ],
     sessions: [],
     farmers: [],
     landRequests: [],
-    documents: [
-      { id: "demo-title-9002", landId: "9002", category: "Title deed", reference: "TITLE-9002-2026", hash: "0xe224...f7f", status: "Verified", createdAt: "2026-08-10T10:00:00.000Z", verifiedAt: "2026-08-10T10:05:00.000Z" },
-      { id: "demo-tax-9002", landId: "9002", category: "Tax receipt", reference: "TAX-9002-2026", hash: "0x8cbb...40d6", status: "Pending", createdAt: "2026-08-10T10:06:00.000Z", verifiedAt: null }
-    ],
-    audit: [
-      { id: "demo-audit-1", action: "Seeded completed ownership transfer", landId: "9002", actor: "Demo authority", detail: "Local Hardhat demonstration record", createdAt: "2026-08-10T10:10:00.000Z" }
-    ]
+    documents: [],
+    audit: []
   };
 }
 
@@ -41,9 +33,10 @@ function readState() {
   try {
     if (fs.existsSync(dataPath)) {
       const data = JSON.parse(fs.readFileSync(dataPath, "utf8"));
-      if (Array.isArray(data.users)) {
-        const admin = data.users.find((u) => u.role === "admin" || u.username === "admin");
-        if (admin) admin.email = "rcbforevervk1800@gmail.com";
+      if (!Array.isArray(data.users)) data.users = initialState().users;
+      else {
+        // Filter out un-registered demo users (demo-hemant, demo-kavitha, demo-rohan)
+        data.users = data.users.filter((u) => !["demo-hemant", "demo-kavitha", "demo-rohan"].includes(u.id));
       }
       return data;
     }
@@ -226,7 +219,8 @@ async function deliverLoginCode(user, code) {
     </head>
     <body style="margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f7f2e6;">
       <div style="max-width: 520px; margin: 20px auto; background-color: #fffdf8; border-radius: 16px; overflow: hidden; border: 1px solid #dec9a4; box-shadow: 0 10px 25px -5px rgba(110, 31, 45, 0.15);">
-        <div style="background: linear-gradient(135deg, #6e1f2d 0%, #8c2636 100%); padding: 32px 24px; text-align: center;">
+<!-- Header Banner matching Dashboard (#6e1f2d -> #8c2636) -->
+<div style="background: linear-gradient(135deg, #6e1f2d 0%, #8c2636 100%); padding: 32px 24px; text-align: center;">
           <h1 style="margin: 0; font-size: 26px; font-weight: 800; color: #fff9ed; letter-spacing: 0.5px;">
             <span style="display: inline-block; background: linear-gradient(145deg, #f2bf45, #cb7c20); color: #56201e; border-radius: 8px; width: 34px; height: 34px; line-height: 34px; font-size: 20px; font-weight: 900; vertical-align: middle; margin-right: 8px;">ಭೂ</span>
             <span style="vertical-align: middle;">BhoomiChain</span>
@@ -235,21 +229,24 @@ async function deliverLoginCode(user, code) {
             Karnataka Land Records Demonstrator
           </p>
         </div>
-        <div style="padding: 32px 28px; background-color: #fffdf8;">
+<!-- Body Content -->
+<div style="padding: 32px 28px; background-color: #fffdf8;">
           <p style="margin: 0 0 16px 0; font-size: 15px; color: #243c2b; line-height: 1.5;">
             Dear <strong style="color: #6e1f2d;">${recipientName}</strong>,
           </p>
           <p style="margin: 0 0 24px 0; font-size: 15px; color: #586457; line-height: 1.5;">
             Your email verification code for the BhoomiChain land registration portal is:
           </p>
-          <div style="background-color: #581825; border-radius: 12px; padding: 24px 16px; text-align: center; margin-bottom: 24px; border: 1px solid #8c2636;">
+<!-- OTP Code Block Container matching Dashboard Panel theme -->
+<div style="background-color: #581825; border-radius: 12px; padding: 24px 16px; text-align: center; margin-bottom: 24px; border: 1px solid #8c2636;">
             <div style="font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace; font-size: 38px; font-weight: 800; color: #f6ca59; letter-spacing: 10px; padding-left: 10px; display: inline-block; user-select: all; -webkit-user-select: all; -moz-user-select: all; cursor: text;">${code}</div>
           </div>
           <p style="margin: 0; font-size: 13px; color: #7b705d; line-height: 1.4; border-top: 1px solid #ead8b5; padding-top: 16px;">
             This code expires in 10 minutes. If you did not request this sign-in code, please ignore this message.
           </p>
         </div>
-        <div style="background-color: #f7efe1; padding: 14px 28px; text-align: center; border-top: 1px solid #ead8b5;">
+<!-- Footer -->
+<div style="background-color: #f7efe1; padding: 14px 28px; text-align: center; border-top: 1px solid #ead8b5;">
           <p style="margin: 0; font-size: 12px; color: #836f56; font-weight: 600;">
             Academic local demonstrator — Government of Karnataka Land Records Model
           </p>
@@ -305,12 +302,26 @@ app.get("/health", (_request, response) => {
   response.json({ status: "ok", service: "land-registration-api", persistence: "local JSON store" });
 });
 
-const DEMO_BUYER_WALLET = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+const KNOWN_WALLETS = {
+  sudeep: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  raj: "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+  boss: "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+  naveen: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+  hemant: "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"
+};
+
+function getWalletForUser(u) {
+  if (u.walletAddress && typeof u.walletAddress === "string" && u.walletAddress.startsWith("0x")) return u.walletAddress;
+  const username = String(u.username || "").toLowerCase();
+  if (KNOWN_WALLETS[username]) return KNOWN_WALLETS[username];
+  const hash = crypto.createHash("sha256").update(u.id || u.username).digest("hex");
+  return "0x" + hash.slice(0, 40);
+}
 
 app.get("/api/purchasers", (_request, response) => {
   const purchasers = state.users
     .filter((u) => u.role !== "admin" && u.role !== "officer" && u.status === "Active")
-    .map((u) => ({ id: u.id, fullName: u.fullName, username: u.username, walletAddress: DEMO_BUYER_WALLET }));
+    .map((u) => ({ id: u.id, fullName: u.fullName, username: u.username, role: u.role, walletAddress: getWalletForUser(u) }));
   return response.json(purchasers);
 });
 
@@ -340,7 +351,7 @@ app.post("/api/auth/register", (request, response) => {
   const normalizedUsername = String(username || "").trim().toLowerCase();
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const normalizedAadhaar = String(aadhaarNumber || "").replace(/\s/g, "");
-  if (!["farmer", "purchaser"].includes(normalizedRole)) return response.status(400).json({ message: "Only Farmer and Purchaser accounts can be self-registered. Revenue Officers are created by the Administrator." });
+  if (!["citizen", "farmer", "purchaser"].includes(normalizedRole)) return response.status(400).json({ message: "Only Citizen accounts can be self-registered. Revenue Officers are created by the Administrator." });
   if (typeof fullName !== "string" || fullName.trim().length < 3 || !validUsername(normalizedUsername) || !validEmail(normalizedEmail) || !validIndianMobile(mobile) || !validAadhaar(normalizedAadhaar) || !String(gender || "").trim() || !String(dateOfBirth || "").trim()) {
     return response.status(400).json({ message: "Enter full name, username, gender, date of birth, valid Aadhaar number, Indian mobile number, and email address." });
   }

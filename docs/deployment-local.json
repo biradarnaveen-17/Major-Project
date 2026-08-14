@@ -1,9 +1,9 @@
 {
-  "network": "amoy",
-  "chainId": 80002,
-  "deployedAt": "2026-08-14T04:42:36.553Z",
-  "deployer": "0x5f06C599Dbd2ECE5199E052c53d3487891CFf750",
-  "contracts": {
+"network": "ganache",
+  "chainId": 31337,
+  "deployedAt": "2026-08-14T14:44:32.000Z",
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+"contracts": {
     "base": "0x3746E1A6029902024bF4B85a80FAF01C1E3FAEfD",
     "optimized": "0xB3C7d1C58BB098F4baf5B5818c38688146643036"
   }
