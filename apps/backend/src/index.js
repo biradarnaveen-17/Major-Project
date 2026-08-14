@@ -291,10 +291,8 @@ function requireAdmin(request, response, next) {
 
 app.use(helmet());
 app.use(cors({
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.has(origin) || /^http:\/\/localhost:\d+$/.test(origin) || /\.github\.io$/.test(origin) || process.env.CORS_ORIGIN === "*") return callback(null, true);
-    return callback(null, true);
-  }
+  origin: true,
+  credentials: true
 }));
 app.use(express.json({ limit: "100kb" }));
 app.use(morgan("dev"));
