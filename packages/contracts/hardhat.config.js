@@ -1,3 +1,5 @@
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 require("dotenv").config();
 require("@nomicfoundation/hardhat-toolbox");
 require("hardhat-gas-reporter");
@@ -29,6 +31,10 @@ module.exports = {
     ganache: {
       url: RPC_URL || "http://ganache:8545",
       accounts: ganacheAccounts
+    },
+    amoy: {
+      url: process.env.POLYGON_AMOY_RPC || "https://polygon-amoy-bor-rpc.publicnode.com",
+      accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : []
     }
   },
   gasReporter: {

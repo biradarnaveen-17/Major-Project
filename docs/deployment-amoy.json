@@ -6,5 +6,9 @@
   "contracts": {
     "base": "0x3746E1A6029902024bF4B85a80FAF01C1E3FAEfD",
     "optimized": "0xB3C7d1C58BB098F4baf5B5818c38688146643036"
+  },
+  "explorer": {
+    "base": "https://amoy.polygonscan.com/address/0x3746E1A6029902024bF4B85a80FAF01C1E3FAEfD",
+    "optimized": "https://amoy.polygonscan.com/address/0xB3C7d1C58BB098F4baf5B5818c38688146643036"
   }
 }
