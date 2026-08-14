@@ -204,15 +204,13 @@ function smtpConfigured() {
 }
 
 async function deliverLoginCode(user, code) {
-  if (!smtpConfigured()) return { mode: "fallback", demoCode: code };
+  if (!smtpConfigured()) throw new Error("SMTP environment variables missing. Configure SMTP_HOST, SMTP_USER, SMTP_PASS, and SMTP_FROM.");
   const pass = String(process.env.SMTP_PASS || "").replace(/\s+/g, "");
+  const is465 = Number(process.env.SMTP_PORT || 465) === 465;
   const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: process.env.SMTP_SECURE === "true",
-    connectionTimeout: 4000,
-    greetingTimeout: 4000,
-    socketTimeout: 6000,
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port: Number(process.env.SMTP_PORT || 465),
+    secure: is465,
     auth: { user: process.env.SMTP_USER, pass }
   });
 
@@ -222,36 +220,52 @@ async function deliverLoginCode(user, code) {
     <html>
     <head>
       <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>BhoomiChain Verification Code</title>
     </head>
-    <body style="margin: 0; padding: 20px; font-family: sans-serif; background-color: #f7f2e6;">
-      <div style="max-width: 520px; margin: 20px auto; background-color: #fffdf8; border-radius: 16px; border: 1px solid #dec9a4;">
-        <div style="background: linear-gradient(135deg, #6e1f2d, #8c2636); padding: 24px; text-align: center; color: #fff9ed;">
-          <h1 style="margin: 0;">BhoomiChain</h1>
+    <body style="margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f7f2e6;">
+      <div style="max-width: 520px; margin: 20px auto; background-color: #fffdf8; border-radius: 16px; overflow: hidden; border: 1px solid #dec9a4; box-shadow: 0 10px 25px -5px rgba(110, 31, 45, 0.15);">
+        <div style="background: linear-gradient(135deg, #6e1f2d 0%, #8c2636 100%); padding: 32px 24px; text-align: center;">
+          <h1 style="margin: 0; font-size: 26px; font-weight: 800; color: #fff9ed; letter-spacing: 0.5px;">
+            <span style="display: inline-block; background: linear-gradient(145deg, #f2bf45, #cb7c20); color: #56201e; border-radius: 8px; width: 34px; height: 34px; line-height: 34px; font-size: 20px; font-weight: 900; vertical-align: middle; margin-right: 8px;">ಭೂ</span>
+            <span style="vertical-align: middle;">BhoomiChain</span>
+          </h1>
+          <p style="margin: 6px 0 0 0; font-size: 13px; color: #f1d9c7; font-weight: 500; letter-spacing: 0.2px;">
+            Karnataka Land Records Demonstrator
+          </p>
         </div>
-        <div style="padding: 24px; text-align: center;">
-          <p>Dear <strong>${recipientName}</strong>,</p>
-          <p>Your sign-in verification code is:</p>
-          <div style="font-size: 36px; font-weight: bold; color: #f6ca59; background: #581825; padding: 16px; border-radius: 8px;">${code}</div>
+        <div style="padding: 32px 28px; background-color: #fffdf8;">
+          <p style="margin: 0 0 16px 0; font-size: 15px; color: #243c2b; line-height: 1.5;">
+            Dear <strong style="color: #6e1f2d;">${recipientName}</strong>,
+          </p>
+          <p style="margin: 0 0 24px 0; font-size: 15px; color: #586457; line-height: 1.5;">
+            Your email verification code for the BhoomiChain land registration portal is:
+          </p>
+          <div style="background-color: #581825; border-radius: 12px; padding: 24px 16px; text-align: center; margin-bottom: 24px; border: 1px solid #8c2636;">
+            <div style="font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace; font-size: 38px; font-weight: 800; color: #f6ca59; letter-spacing: 10px; padding-left: 10px; display: inline-block; user-select: all; -webkit-user-select: all; -moz-user-select: all; cursor: text;">${code}</div>
+          </div>
+          <p style="margin: 0; font-size: 13px; color: #7b705d; line-height: 1.4; border-top: 1px solid #ead8b5; padding-top: 16px;">
+            This code expires in 10 minutes. If you did not request this sign-in code, please ignore this message.
+          </p>
+        </div>
+        <div style="background-color: #f7efe1; padding: 14px 28px; text-align: center; border-top: 1px solid #ead8b5;">
+          <p style="margin: 0; font-size: 12px; color: #836f56; font-weight: 600;">
+            Academic local demonstrator — Government of Karnataka Land Records Model
+          </p>
         </div>
       </div>
     </body>
     </html>
   `;
 
-  try {
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM,
-      to: user.email,
-      subject: "BhoomiChain sign-in verification code",
-      text: `Your BhoomiChain verification code is: ${code}`,
-      html
-    });
-    return { mode: "email" };
-  } catch (err) {
-    console.warn("SMTP delivery error, falling back to instant OTP display:", err.message);
-    return { mode: "fallback", demoCode: code };
-  }
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: user.email,
+    subject: "BhoomiChain sign-in verification code",
+    text: `Dear ${recipientName},\n\nYour email verification code for the BhoomiChain land registration portal is: ${code}\n\nIt expires in 10 minutes.`,
+    html
+  });
+  return { mode: "email" };
 }
 
 function createSession(user) {
@@ -352,16 +366,17 @@ app.post("/api/auth/request-code", async (request, response) => {
   const code = String(crypto.randomInt(100000, 1000000));
   user.loginCodeHash = otpHash(code);
   user.loginCodeExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-  const delivery = await deliverLoginCode(user, code).catch((err) => {
-    console.warn("SMTP send failed, providing fallback OTP:", err.message);
-    return { mode: "fallback", demoCode: code };
-  });
-  addAudit({ action: "Email sign-in code issued", landId: "Identity", actor: user.fullName, detail: `Code issued to ${maskEmail(user.email)}` });
-  saveState();
-  const message = delivery.mode === "email" 
-    ? "Verification code sent to your email address." 
-    : `Verification code issued for ${maskEmail(user.email)}. (OTP Code: ${code})`;
-  return response.json({ userId: user.id, maskedEmail: maskEmail(user.email), message, demoCode: code });
+  try {
+    await deliverLoginCode(user, code);
+    addAudit({ action: "Email sign-in code issued", landId: "Identity", actor: user.fullName, detail: `Code issued to ${maskEmail(user.email)}` });
+    saveState();
+    return response.json({ userId: user.id, maskedEmail: maskEmail(user.email), message: "Verification code sent to your email address." });
+  } catch (error) {
+    console.error("SMTP delivery error:", error);
+    delete user.loginCodeHash;
+    delete user.loginCodeExpiresAt;
+    return response.status(502).json({ message: `Unable to send verification email: ${error.message}` });
+  }
 });
 
 app.post("/api/auth/verify-code", (request, response) => {
