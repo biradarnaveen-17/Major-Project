@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { ethers } from "ethers";
 import "./styles.css";
 
-const API_URL = "https://7106400e1fd51cef-152-57-117-77.serveousercontent.com";
+const API_URL = "https://bfc7315dacec0864-152-57-117-77.serveousercontent.com";
 const RPC_URL = "https://polygon-amoy-bor-rpc.publicnode.com";
 const ADDRESSES = { base: "0x3746E1A6029902024bF4B85a80FAF01C1E3FAEfD", optimized: "0xB3C7d1C58BB098F4baf5B5818c38688146643036" };
 const DEMO_ACCOUNTS = { authority: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", buyer: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", farmer: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC" };
