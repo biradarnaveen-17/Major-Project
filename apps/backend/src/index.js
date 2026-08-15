@@ -307,7 +307,7 @@ function getWalletForUser(u) {
 
 app.get("/api/purchasers", (_request, response) => {
   const purchasers = state.users
-    .filter((u) => u.role !== "admin" && u.role !== "officer" && u.status === "Active")
+    .filter((u) => u.role !== "admin" && u.role !== "officer" && (u.status === "Active" || !u.status))
     .map((u) => ({ id: u.id, fullName: u.fullName, username: u.username, role: u.role, walletAddress: getWalletForUser(u) }));
   return response.json(purchasers);
 });
