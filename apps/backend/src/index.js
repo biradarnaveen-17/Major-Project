@@ -19,7 +19,26 @@ function initialState() {
   return {
     runs: [],
     users: [
-      { id: "system-admin", role: "admin", fullName: "Project Administrator", username: "admin", email: "rcbforevervk1800@gmail.com", gender: "Not specified", dateOfBirth: "1990-01-01", aadhaarHash: null, aadhaarLast4: null, mobile: "9000000000", status: "Active", createdAt: "2026-08-10T09:00:00.000Z" }
+      {
+        id: "user-admin",
+        role: "admin",
+        fullName: "System Administrator",
+        username: "admin",
+        email: "admin@bhoomi.gov.in",
+        mobile: "9900099000",
+        status: "Active",
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: "user-officer",
+        role: "officer",
+        fullName: "Revenue Officer Kumar",
+        username: "revenue.officer",
+        email: "revenue.officer@bhoomi.gov.in",
+        mobile: "9876543210",
+        status: "Active",
+        createdAt: new Date().toISOString()
+      }
     ],
     sessions: [],
     farmers: [],
@@ -35,8 +54,8 @@ function readState() {
       const data = JSON.parse(fs.readFileSync(dataPath, "utf8"));
       if (!Array.isArray(data.users)) data.users = initialState().users;
       else {
-        // Filter out un-registered demo users (demo-hemant, demo-kavitha, demo-rohan)
-        data.users = data.users.filter((u) => !["demo-hemant", "demo-kavitha", "demo-rohan"].includes(u.id));
+        // Filter out un-registered demo users (user-sudeep, user-raj, user-naveen, demo-hemant, demo-kavitha, demo-rohan)
+        data.users = data.users.filter((u) => !["user-sudeep", "user-raj", "user-naveen", "demo-hemant", "demo-kavitha", "demo-rohan"].includes(u.id));
       }
       return data;
     }
@@ -280,18 +299,8 @@ app.get("/health", (_request, response) => {
   response.json({ status: "ok", service: "land-registration-api", persistence: "local JSON store" });
 });
 
-const KNOWN_WALLETS = {
-  sudeep: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-  raj: "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
-  boss: "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
-  naveen: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-  hemant: "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65"
-};
-
 function getWalletForUser(u) {
   if (u.walletAddress && typeof u.walletAddress === "string" && u.walletAddress.startsWith("0x")) return u.walletAddress;
-  const username = String(u.username || "").toLowerCase();
-  if (KNOWN_WALLETS[username]) return KNOWN_WALLETS[username];
   const pk = ethers.keccak256(ethers.toUtf8Bytes(String(u.id || u.username)));
   return new ethers.Wallet(pk).address;
 }
