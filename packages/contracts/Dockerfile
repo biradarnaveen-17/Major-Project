@@ -27,7 +27,5 @@ CMD ["sh", "-c", "\
   done && \
   echo 'Ganache is ready. Deploying contracts...' && \
   npx hardhat run scripts/deploy.js --network ganache && \
-  echo 'Seeding demo data...' && \
-  npx hardhat run scripts/seedDemo.js --network ganache && \
-  echo 'Deployment and seeding complete.' \
+  echo 'Deployment complete. No demo land seeded.' \
 "]
