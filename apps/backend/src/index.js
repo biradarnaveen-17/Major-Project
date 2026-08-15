@@ -187,10 +187,10 @@ function createCaptcha() {
 }
 
 function verifyCaptcha(captchaId, answer) {
-  if (String(captchaId || "") === "fallback-id" && String(answer || "").trim().toLowerCase() === "7b2k9") return true;
+  if (String(captchaId || "") === "fallback-id" && String(answer || "").trim() === "7B2K9") return true;
   const challenge = captchaChallenges.get(String(captchaId || ""));
   captchaChallenges.delete(String(captchaId || ""));
-  return Boolean(challenge && challenge.expiresAt >= Date.now() && challenge.answer.toLowerCase() === String(answer || "").trim().toLowerCase());
+  return Boolean(challenge && challenge.expiresAt >= Date.now() && challenge.answer === String(answer || "").trim());
 }
 
 function smtpConfigured() {
@@ -218,52 +218,30 @@ async function deliverLoginCode(user, code) {
       <title>BhoomiChain Verification Code</title>
     </head>
     <body style="margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f7f2e6;">
-      <div style="max-width: 520px; margin: 20px auto; background-color: #fffdf8; border-radius: 16px; overflow: hidden; border: 1px solid #dec9a4; box-shadow: 0 10px 25px -5px rgba(110, 31, 45, 0.15);">
-<!-- Header Banner matching Dashboard (#6e1f2d -> #8c2636) -->
-<div style="background: linear-gradient(135deg, #6e1f2d 0%, #8c2636 100%); padding: 32px 24px; text-align: center;">
-          <h1 style="margin: 0; font-size: 26px; font-weight: 800; color: #fff9ed; letter-spacing: 0.5px;">
-            <span style="display: inline-block; background: linear-gradient(145deg, #f2bf45, #cb7c20); color: #56201e; border-radius: 8px; width: 34px; height: 34px; line-height: 34px; font-size: 20px; font-weight: 900; vertical-align: middle; margin-right: 8px;">ಭೂ</span>
-            <span style="vertical-align: middle;">BhoomiChain</span>
-          </h1>
-          <p style="margin: 6px 0 0 0; font-size: 13px; color: #f1d9c7; font-weight: 500; letter-spacing: 0.2px;">
-            Karnataka Land Records Demonstrator
-          </p>
+      <div style="max-width: 500px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; padding: 30px; border: 1px solid #e5e7eb; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #1e3a8a; font-size: 24px; margin: 0;">BhoomiChain</h1>
+          <p style="color: #6b7280; font-size: 13px; margin-top: 4px;">Karnataka Land Registration System</p>
         </div>
-<!-- Body Content -->
-<div style="padding: 32px 28px; background-color: #fffdf8;">
-          <p style="margin: 0 0 16px 0; font-size: 15px; color: #243c2b; line-height: 1.5;">
-            Dear <strong style="color: #6e1f2d;">${recipientName}</strong>,
-          </p>
-          <p style="margin: 0 0 24px 0; font-size: 15px; color: #586457; line-height: 1.5;">
-            Your email verification code for the BhoomiChain land registration portal is:
-          </p>
-<!-- OTP Code Block Container matching Dashboard Panel theme -->
-<div style="background-color: #581825; border-radius: 12px; padding: 24px 16px; text-align: center; margin-bottom: 24px; border: 1px solid #8c2636;">
-            <div style="font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace; font-size: 38px; font-weight: 800; color: #f6ca59; letter-spacing: 10px; padding-left: 10px; display: inline-block; user-select: all; -webkit-user-select: all; -moz-user-select: all; cursor: text;">${code}</div>
-          </div>
-          <p style="margin: 0; font-size: 13px; color: #7b705d; line-height: 1.4; border-top: 1px solid #ead8b5; padding-top: 16px;">
-            This code expires in 10 minutes. If you did not request this sign-in code, please ignore this message.
-          </p>
+        <p style="color: #374151; font-size: 16px;">Namaste <strong>Sri / Smt. ${recipientName}</strong>,</p>
+        <p style="color: #4b5563; font-size: 14px; line-height: 1.5;">Your one-time login verification code for accessing your BhoomiChain account is:</p>
+        <div style="background-color: #eff6ff; border: 2px dashed #3b82f6; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
+          <span style="font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1d4ed8;">${code}</span>
         </div>
-<!-- Footer -->
-<div style="background-color: #f7efe1; padding: 14px 28px; text-align: center; border-top: 1px solid #ead8b5;">
-          <p style="margin: 0; font-size: 12px; color: #836f56; font-weight: 600;">
-            Academic local demonstrator — Government of Karnataka Land Records Model
-          </p>
-        </div>
+        <p style="color: #6b7280; font-size: 13px;">This code is valid for 10 minutes. If you did not request this login code, please ignore this email.</p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+        <p style="color: #9ca3af; font-size: 11px; text-align: center;">BhoomiChain — Secure Role-Based Land Records System</p>
       </div>
     </body>
     </html>
   `;
 
   await transporter.sendMail({
-    from: process.env.SMTP_FROM,
+    from: `"BhoomiChain System" <${process.env.SMTP_FROM}>`,
     to: user.email,
-    subject: "BhoomiChain sign-in verification code",
-    text: `Dear ${recipientName},\n\nYour email verification code for the BhoomiChain land registration portal is: ${code}\n\nIt expires in 10 minutes.`,
+    subject: `${code} is your BhoomiChain login code`,
     html
   });
-  return { mode: "email" };
 }
 
 function createSession(user) {
@@ -368,11 +346,19 @@ app.post("/api/auth/register", (request, response) => {
 });
 
 app.post("/api/auth/request-code", async (request, response) => {
-  const { identifier, captchaId, captchaAnswer } = request.body || {};
-  if (!verifyCaptcha(captchaId, captchaAnswer)) return response.status(400).json({ message: "CAPTCHA answer is incorrect or expired. Refresh it and try again." });
+  const { identifier, captchaId, captchaAnswer, portalMode } = request.body || {};
+  if (!verifyCaptcha(captchaId, captchaAnswer)) return response.status(400).json({ message: "CAPTCHA answer is incorrect or expired (case-sensitive). Refresh it and try again." });
   const normalizedIdentifier = String(identifier || "").trim().toLowerCase();
   const user = state.users.find((item) => item.username === normalizedIdentifier || item.email === normalizedIdentifier);
   if (!user || user.status !== "Active") return response.status(404).json({ message: "No active account was found for that username or email address." });
+
+  if (portalMode === "officer" && user.role !== "officer" && user.role !== "admin") {
+    return response.status(403).json({ message: "This account is a Citizen account. Please sign in under Citizen Sign In." });
+  }
+  if (portalMode === "login" && (user.role === "officer" || user.role === "admin")) {
+    return response.status(403).json({ message: "This account is a Revenue Officer account. Please sign in under Revenue Officer Sign In." });
+  }
+
   const code = String(crypto.randomInt(100000, 1000000));
   user.loginCodeHash = otpHash(code);
   user.loginCodeExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
