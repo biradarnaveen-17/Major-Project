@@ -8,6 +8,7 @@ const express = require("express");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const nodemailer = require("nodemailer");
+const { ethers } = require("ethers");
 
 const app = express();
 const port = Number(process.env.PORT || 5000);

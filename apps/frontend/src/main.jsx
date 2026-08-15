@@ -299,6 +299,21 @@ const DEMO_KEYS = {
       }
 
       const signer = new ethers.Wallet(privateKey, localProvider);
+      
+      try {
+        const balance = await localProvider.getBalance(account);
+        if (balance < ethers.parseEther("0.1")) {
+          const faucetSigner = new ethers.Wallet(DEMO_KEYS.authority, localProvider);
+          const tx = await faucetSigner.sendTransaction({
+            to: account,
+            value: ethers.parseEther("1.0")
+          });
+          await tx.wait();
+        }
+      } catch (err) {
+        console.warn("Auto-faucet funding skipped:", err.message);
+      }
+
       setWallet({ provider: localProvider, signer, account, chainId });
       setForm((current) => ({ ...current, owner: account, buyer: "" }));
       setMessage(`${user?.fullName || role} connected to blockchain (${shortAddress(account)}).`);
@@ -504,6 +519,22 @@ const DEMO_KEYS = {
         }
       }
       const signer = await signerFor(action, targetLand);
+      
+      try {
+        const signerAddress = await signer.getAddress();
+        const signerBalance = await wallet.provider.getBalance(signerAddress);
+        if (signerBalance < ethers.parseEther("0.1")) {
+          const faucet = new ethers.Wallet(DEMO_KEYS.authority, wallet.provider);
+          const fundTx = await faucet.sendTransaction({
+            to: signerAddress,
+            value: ethers.parseEther("1.0")
+          });
+          await fundTx.wait();
+        }
+      } catch (err) {
+        console.warn("Pre-tx auto-faucet skipped:", err.message);
+      }
+
       registry = contract(true, signer);
       if (["register", "approve"].includes(action)) {
         let isReg = false;
