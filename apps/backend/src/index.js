@@ -292,8 +292,8 @@ function getWalletForUser(u) {
   if (u.walletAddress && typeof u.walletAddress === "string" && u.walletAddress.startsWith("0x")) return u.walletAddress;
   const username = String(u.username || "").toLowerCase();
   if (KNOWN_WALLETS[username]) return KNOWN_WALLETS[username];
-  const hash = crypto.createHash("sha256").update(u.id || u.username).digest("hex");
-  return "0x" + hash.slice(0, 40);
+  const pk = ethers.keccak256(ethers.toUtf8Bytes(String(u.id || u.username)));
+  return new ethers.Wallet(pk).address;
 }
 
 app.get("/api/purchasers", (_request, response) => {
