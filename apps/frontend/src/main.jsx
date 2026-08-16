@@ -225,34 +225,49 @@ function BhoomiApp() {
 
       for (let index = 0; index < targetLoads.length; index++) {
         const count = targetLoads[index];
+        const batchSize = count > 50 ? 10 : 5;
 
-        // 1. Base Contract Test
+        // --- 1. Base Contract Test ---
         setLoadProgress(`[${results.length + 1}/${totalSteps}] Executing Base Contract (${count} txns)...`);
         const baseStart = performance.now();
         let baseTotalGas = 0n;
         let baseFailures = 0;
 
-        for (let i = 0; i < count; i++) {
-          const landId = BigInt(Math.floor(Date.now() / 1000) * 1000 + i + Math.floor(Math.random() * 900000));
-          try {
-            const tx1 = await baseContractAdmin.registerLand(landId, authorityWallet.address, `SUR-${landId}`, "Bengaluru", 2400);
-            const r1 = await tx1.wait();
-            baseTotalGas += r1.gasUsed;
+        for (let i = 0; i < count; i += batchSize) {
+          const chunk = Array.from({ length: Math.min(batchSize, count - i) }, (_, offset) => i + offset);
+          await Promise.all(
+            chunk.map(async (idx) => {
+              const landId = BigInt(Date.now()) * 10000n + BigInt(idx) + BigInt(Math.floor(Math.random() * 9000));
+              try {
+                // Base explicit signature: registerLand(uint256,address,string,string,uint256)
+                const tx1 = await baseContractAdmin["registerLand(uint256,address,string,string,uint256)"](
+                  landId,
+                  authorityWallet.address,
+                  `SUR-${landId}`,
+                  "Bengaluru",
+                  2400
+                );
+                const r1 = await tx1.wait();
+                baseTotalGas += r1.gasUsed;
 
-            const tx2 = await baseContractAdmin.requestTransfer(landId, buyerWallet.address);
-            const r2 = await tx2.wait();
-            baseTotalGas += r2.gasUsed;
+                const tx2 = await baseContractAdmin.requestTransfer(landId, buyerWallet.address);
+                const r2 = await tx2.wait();
+                baseTotalGas += r2.gasUsed;
 
-            const tx3 = await baseContractAdmin.approveTransfer(landId);
-            const r3 = await tx3.wait();
-            baseTotalGas += r3.gasUsed;
+                const tx3 = await baseContractAdmin.approveTransfer(landId);
+                const r3 = await tx3.wait();
+                baseTotalGas += r3.gasUsed;
 
-            const tx4 = await baseContractBuyer.transferOwnership(landId);
-            const r4 = await tx4.wait();
-            baseTotalGas += r4.gasUsed;
-          } catch (err) {
-            baseFailures++;
-          }
+                const tx4 = await baseContractBuyer.transferOwnership(landId);
+                const r4 = await tx4.wait();
+                baseTotalGas += r4.gasUsed;
+              } catch (err) {
+                console.error("Base tx error:", err);
+                baseFailures++;
+              }
+            })
+          );
+          await new Promise((resolve) => setTimeout(resolve, 0));
         }
         const baseElapsed = Number((performance.now() - baseStart).toFixed(2));
         const baseGasNum = Number(baseTotalGas);
@@ -267,34 +282,47 @@ function BhoomiApp() {
           elapsedMs: baseElapsed
         });
 
-        // 2. Optimized Contract Test
+        // --- 2. Optimized Contract Test ---
         setLoadProgress(`[${results.length + 1}/${totalSteps}] Executing Optimized Contract (${count} txns)...`);
         const optStart = performance.now();
         let optTotalGas = 0n;
         let optFailures = 0;
 
-        for (let i = 0; i < count; i++) {
-          const landId = BigInt(Math.floor(Date.now() / 1000) * 1000 + i + Math.floor(Math.random() * 900000));
-          const metaHash = ethers.keccak256(ethers.toUtf8Bytes(`BENCHMARK|BENGALURU|${landId}`));
-          try {
-            const tx1 = await optContractAdmin.registerLand(landId, authorityWallet.address, metaHash, 2400);
-            const r1 = await tx1.wait();
-            optTotalGas += r1.gasUsed;
+        for (let i = 0; i < count; i += batchSize) {
+          const chunk = Array.from({ length: Math.min(batchSize, count - i) }, (_, offset) => i + offset);
+          await Promise.all(
+            chunk.map(async (idx) => {
+              const landId = BigInt(Date.now()) * 10000n + BigInt(idx) + BigInt(Math.floor(Math.random() * 9000));
+              const metaHash = ethers.keccak256(ethers.toUtf8Bytes(`BENCHMARK|BENGALURU|${landId}`));
+              try {
+                // Optimized explicit signature: registerLand(uint256,address,bytes32,uint96)
+                const tx1 = await optContractAdmin["registerLand(uint256,address,bytes32,uint96)"](
+                  landId,
+                  authorityWallet.address,
+                  metaHash,
+                  2400
+                );
+                const r1 = await tx1.wait();
+                optTotalGas += r1.gasUsed;
 
-            const tx2 = await optContractAdmin.requestTransfer(landId, buyerWallet.address);
-            const r2 = await tx2.wait();
-            optTotalGas += r2.gasUsed;
+                const tx2 = await optContractAdmin.requestTransfer(landId, buyerWallet.address);
+                const r2 = await tx2.wait();
+                optTotalGas += r2.gasUsed;
 
-            const tx3 = await optContractAdmin.approveTransfer(landId);
-            const r3 = await tx3.wait();
-            optTotalGas += r3.gasUsed;
+                const tx3 = await optContractAdmin.approveTransfer(landId);
+                const r3 = await tx3.wait();
+                optTotalGas += r3.gasUsed;
 
-            const tx4 = await optContractBuyer.transferOwnership(landId);
-            const r4 = await tx4.wait();
-            optTotalGas += r4.gasUsed;
-          } catch (err) {
-            optFailures++;
-          }
+                const tx4 = await optContractBuyer.transferOwnership(landId);
+                const r4 = await tx4.wait();
+                optTotalGas += r4.gasUsed;
+              } catch (err) {
+                console.error("Optimized tx error:", err);
+                optFailures++;
+              }
+            })
+          );
+          await new Promise((resolve) => setTimeout(resolve, 0));
         }
         const optElapsed = Number((performance.now() - optStart).toFixed(2));
         const optGasNum = Number(optTotalGas);
@@ -915,7 +943,6 @@ const DEMO_KEYS = {
                         <th style={{ padding: "10px" }}>Workload Batch</th>
                         <th style={{ padding: "10px" }}>Total EVM Gas</th>
                         <th style={{ padding: "10px" }}>Gas per Lifecycle</th>
-                        <th style={{ padding: "10px" }}>Failure Rate</th>
                         <th style={{ padding: "10px" }}>Execution Time</th>
                       </tr>
                     </thead>
@@ -929,7 +956,6 @@ const DEMO_KEYS = {
                           <td style={{ padding: "10px", fontWeight: "bold" }}>{row.load} Txns</td>
                           <td style={{ padding: "10px" }}>{Number(row.totalGas).toLocaleString()} gas</td>
                           <td style={{ padding: "10px", fontWeight: "bold" }}>{Number(row.gasPerLifecycle).toLocaleString()} gas</td>
-                          <td style={{ padding: "10px" }}><Pill tone={row.failureRate === 0 ? "success" : "warning"}>{row.failureRate}%</Pill></td>
                           <td style={{ padding: "10px" }}>{row.elapsedMs} ms</td>
                         </tr>
                       ))}
