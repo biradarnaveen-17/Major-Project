@@ -33,7 +33,7 @@ async function scenario(contractName, count, mode, signers) {
   const metadata = ethers.keccak256(ethers.toUtf8Bytes("BENCHMARK|MYSURU|2400"));
   const registration = await execute(ids.map((id) => () => contractName === "BaseLandRegistry"
     ? contract.connect(registrar).registerLand(id, owner.address, `SUR-${id}`, "Mysuru", 2400)
-    : contract.connect(registrar).registerLand(id, owner.address, metadata, 2400)), concurrent);
+    : contract.connect(registrar).registerLand(id, owner.address, ethers.keccak256(ethers.toUtf8Bytes(`BENCHMARK|MYSURU|${id}`)), 2400)), concurrent);
   const request = await execute(ids.map((id) => () => contract.connect(owner).requestTransfer(id, buyer.address)), concurrent);
   const approval = await execute(ids.map((id) => () => contract.connect(registrar).approveTransfer(id)), concurrent);
   const transfer = await execute(ids.map((id) => () => contract.connect(buyer).transferOwnership(id)), concurrent);
