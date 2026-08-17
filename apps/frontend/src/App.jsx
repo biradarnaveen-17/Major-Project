@@ -786,6 +786,21 @@ export default function BhoomiApp() {
     } catch (error) { setMessage(error.message); }
   }
 
+  async function rejectLandRequest(id) {
+    const reason = window.prompt("Reason for rejecting land registration (e.g., Survey details mismatch):", "Land data is incorrect / Survey details mismatch");
+    if (reason === null) return;
+    try {
+      const request = await api(`/api/land-requests/${id}/reject`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reason })
+      });
+      setLandRequests((current) => current.map((item) => item.id === id ? request : item));
+      setMessage(`Land-registration request for Survey #${request.surveyNumber} rejected by Revenue Officer.`);
+      loadPortalData();
+    } catch (error) { setMessage(error.message); }
+  }
+
   function prepareBlockchainRegistration(request) {
     const ownerWallet = (request.walletAddress && ethers.isAddress(request.walletAddress)) ? request.walletAddress : DEMO_ACCOUNTS.farmer;
     setForm((current) => ({ ...current, landId: String(Date.now()), owner: ownerWallet, survey: request.surveyNumber, district: request.district, taluk: request.taluk, hobli: request.hobli, village: request.village, area: request.extent, lookupId: current.lookupId }));
@@ -1015,7 +1030,16 @@ export default function BhoomiApp() {
                   <div className="table-row" key={request.id}>
                     <span><strong>{request.surveyNumber}</strong><small>{request.extent} gunta</small></span>
                     <span>{request.village}, {request.hobli}<small>{request.taluk}, {request.district}</small></span>
-                    <span><Pill tone={request.status === "Registered on blockchain" ? "success" : request.status === "Verified" ? "purple" : "warning"}>{request.status}</Pill></span>
+                    <span>
+                      <Pill tone={request.status === "Registered on blockchain" ? "success" : request.status === "Verified" ? "purple" : request.status === "Rejected" ? "danger" : "warning"}>
+                        {request.status}
+                      </Pill>
+                      {request.status === "Rejected" && request.rejectionReason && (
+                        <small style={{ color: "#dc2626", display: "block", marginTop: "4px", fontWeight: "bold" }}>
+                          Reason: {request.rejectionReason}
+                        </small>
+                      )}
+                    </span>
                     <span>{request.landId ? (
                       <div style={{ display: "grid", gap: "6px" }}>
                         <strong>Land #{request.landId}</strong>
@@ -1066,12 +1090,19 @@ export default function BhoomiApp() {
                   <div className="table-row" key={request.id}>
                     <span><strong>{request.farmerName}</strong><small>{request.surveyNumber} | mobile ending {request.mobile.slice(-4)}</small></span>
                     <span>{request.village}, {request.hobli}<small>{request.taluk}, {request.district} | {request.extent} gunta</small></span>
-                    <span><Pill tone={request.status === "Registered on blockchain" ? "success" : request.status === "Verified" ? "purple" : "warning"}>{request.status}</Pill></span>
+                    <span><Pill tone={request.status === "Registered on blockchain" ? "success" : request.status === "Verified" ? "purple" : request.status === "Rejected" ? "danger" : "warning"}>{request.status}</Pill></span>
                     <span>
                       {request.status === "Submitted" ? (
-                        <button className="small-button" onClick={() => verifyLandRequest(request.id)}>Verify details</button>
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                          <button className="small-button" onClick={() => verifyLandRequest(request.id)}>Verify details</button>
+                          <button className="small-button" style={{ backgroundColor: "#dc2626", color: "#ffffff", borderColor: "#b91c1c" }} onClick={() => rejectLandRequest(request.id)}>Reject</button>
+                        </div>
                       ) : request.status === "Verified" ? (
                         <button className="small-button" onClick={() => prepareBlockchainRegistration(request)}>Register on blockchain</button>
+                      ) : request.status === "Rejected" ? (
+                        <small style={{ color: "#dc2626", fontWeight: "bold" }}>
+                          Rejected: {request.rejectionReason || "Details mismatch"}
+                        </small>
                       ) : (
                         <div style={{ display: "grid", gap: "4px" }}>
                           <small>Land ID {request.landId}</small>

@@ -809,6 +809,19 @@ app.patch("/api/land-requests/:id/verify", (request, response) => {
   return response.json(landRequest);
 });
 
+app.patch("/api/land-requests/:id/reject", (request, response) => {
+  const landRequest = state.landRequests.find((item) => item.id === request.params.id);
+  const { reason } = request.body || {};
+  if (!landRequest) return response.status(404).json({ message: "Land-registration request not found." });
+  if (landRequest.status !== "Submitted") return response.status(400).json({ message: "Only submitted requests can be rejected." });
+  landRequest.status = "Rejected";
+  landRequest.rejectedAt = new Date().toISOString();
+  landRequest.rejectionReason = String(reason || "Land data is incorrect / Survey details mismatch").trim();
+  addAudit({ action: "Land request rejected", landId: landRequest.surveyNumber, actor: "Revenue officer", detail: `${landRequest.farmerName} request rejected: ${landRequest.rejectionReason}` });
+  saveState();
+  return response.json(landRequest);
+});
+
 app.patch("/api/land-requests/:id/registered", (request, response) => {
   const landRequest = state.landRequests.find((item) => item.id === request.params.id);
   const { landId, transactionHash } = request.body || {};
