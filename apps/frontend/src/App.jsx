@@ -1124,8 +1124,8 @@ export default function BhoomiApp() {
                   type="button"
                   disabled={
                     busyAction !== null ||
-                    !selectedLand ||
-                    (selectedLand.status !== 0 && selectedLand.pendingOwner && selectedLand.pendingOwner !== ethers.ZeroAddress) ||
+                    !form.landId ||
+                    (selectedLand && selectedLand.status !== 0 && selectedLand.pendingOwner && selectedLand.pendingOwner !== ethers.ZeroAddress) ||
                     session?.user?.role === "officer" || session?.user?.role === "admin"
                   }
                   onClick={() => submit("request")}
