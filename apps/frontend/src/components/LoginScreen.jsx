@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import { API_URL } from "../config.js";
 import { Field, SelectField } from "./UIComponents.jsx";
 
-export default function LoginScreen({ onLogin }) {
+export default function LoginScreen({ onAuthenticated, onLogin }) {
+  const handleLogin = onAuthenticated || onLogin;
   const [mode, setMode] = useState("login");
   const [registerForm, setRegisterForm] = useState({ role: "farmer", fullName: "", username: "", gender: "", dateOfBirth: "", aadhaarNumber: "", mobile: "", email: "" });
   const [loginForm, setLoginForm] = useState({ identifier: "", captchaAnswer: "" });
@@ -33,19 +34,46 @@ export default function LoginScreen({ onLogin }) {
     refreshCaptcha();
   }, []);
 
+  const [pendingRegOtp, setPendingRegOtp] = useState(false);
+  const [regCode, setRegCode] = useState("");
+  const [regDevCode, setRegDevCode] = useState(null);
+
   const updateRegistration = (key) => (event) => setRegisterForm((current) => ({ ...current, [key]: event.target.value }));
 
-  const submitRegistration = async (event) => {
+  const requestRegistrationOtp = async (event) => {
     event.preventDefault();
     setError("");
+    setMessage("");
     try {
-      const result = await apiRequest("/api/auth/register", {
+      const result = await apiRequest("/api/auth/send-registration-otp", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(registerForm)
       });
-      setMessage(`${result.user.fullName} registered successfully. Sign in using ${result.user.username} or ${result.user.email}.`);
+      setMessage(result.message);
+      setRegDevCode(result.devCode || null);
+      setRegCode(""); // Keep input empty so user enters manually
+      setPendingRegOtp(true);
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  };
+
+  const verifyRegistrationOtp = async (event) => {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    try {
+      const result = await apiRequest("/api/auth/verify-registration-otp", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: registerForm.email, code: regCode.replace(/\D/g, "") })
+      });
+      setMessage(`${result.user.fullName} registered & email verified successfully! Sign in using ${result.user.username} or ${result.user.email}.`);
       setLoginForm({ identifier: result.user.email, captchaAnswer: "" });
+      setPendingRegOtp(false);
+      setRegCode("");
+      setRegDevCode(null);
       setMode("login");
       await refreshCaptcha();
     } catch (requestError) {
@@ -80,7 +108,7 @@ export default function LoginScreen({ onLogin }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ userId: pendingLogin.userId, code: code.replace(/\D/g, "") })
       });
-      await onLogin(result);
+      if (handleLogin) await handleLogin(result);
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -117,31 +145,45 @@ export default function LoginScreen({ onLogin }) {
         {error && <p className="login-error">{error}</p>}
 
         {mode === "register" ? (
-          <form onSubmit={submitRegistration}>
-            <p className="eyebrow">PUBLIC REGISTRATION</p>
-            <h2>Citizen account</h2>
-            <SelectField label="Account type" value={registerForm.role} onChange={updateRegistration("role")}>
-              <option value="citizen">Citizen (Land Owner & Purchaser)</option>
-            </SelectField>
-            <div className="form-grid">
-              <Field label="Full name" required value={registerForm.fullName} onChange={updateRegistration("fullName")} />
-              <Field label="Username" required value={registerForm.username} onChange={updateRegistration("username")} placeholder="e.g. sudeep" />
-              <SelectField label="Gender" required value={registerForm.gender} onChange={updateRegistration("gender")}>
-                <option value="">Select</option>
-                <option>Male</option>
-                <option>Female</option>
-                <option>Other</option>
-                <option>Prefer not to say</option>
+          !pendingRegOtp ? (
+            <form onSubmit={requestRegistrationOtp}>
+              <p className="eyebrow">PUBLIC REGISTRATION</p>
+              <h2>Citizen account</h2>
+              <SelectField label="Account type" value={registerForm.role} onChange={updateRegistration("role")}>
+                <option value="citizen">Citizen (Land Owner & Purchaser)</option>
               </SelectField>
-              <Field label="Date of birth" required type="date" value={registerForm.dateOfBirth} onChange={updateRegistration("dateOfBirth")} />
-              <Field label="Aadhaar number" required inputMode="numeric" maxLength="12" value={registerForm.aadhaarNumber} onChange={updateRegistration("aadhaarNumber")} />
-              <Field label="Mobile number" required inputMode="numeric" maxLength="10" value={registerForm.mobile} onChange={updateRegistration("mobile")} />
-              <Field label="Email address" required type="email" value={registerForm.email} onChange={updateRegistration("email")} />
-            </div>
-            <p className="hint">Aadhaar is validated and stored only as a secure hash with the last four digits; it is never put on blockchain.</p>
-            <button className="login-button" type="submit">Create account</button>
-            <button type="button" className="text-button" style={{ width: "100%", marginTop: "10px" }} onClick={() => setMode("login")}>Already have an account? Sign in</button>
-          </form>
+              <div className="form-grid">
+                <Field label="Full name" required value={registerForm.fullName} onChange={updateRegistration("fullName")} />
+                <Field label="Username" required value={registerForm.username} onChange={updateRegistration("username")} placeholder="e.g. sudeep" />
+                <SelectField label="Gender" required value={registerForm.gender} onChange={updateRegistration("gender")}>
+                  <option value="">Select</option>
+                  <option>Male</option>
+                  <option>Female</option>
+                  <option>Other</option>
+                  <option>Prefer not to say</option>
+                </SelectField>
+                <Field label="Date of birth" required type="date" value={registerForm.dateOfBirth} onChange={updateRegistration("dateOfBirth")} />
+                <Field label="Aadhaar number" required inputMode="numeric" maxLength="12" value={registerForm.aadhaarNumber} onChange={updateRegistration("aadhaarNumber")} />
+                <Field label="Mobile number" required inputMode="numeric" maxLength="10" value={registerForm.mobile} onChange={updateRegistration("mobile")} />
+                <Field label="Email address" required type="email" value={registerForm.email} onChange={updateRegistration("email")} placeholder="e.g. farmer@domain.com" />
+              </div>
+              <p className="hint">We verify your email address via OTP before saving your account to ensure you can always sign in safely.</p>
+              <button className="login-button" type="submit">📩 Send Email Verification Code</button>
+              <button type="button" className="text-button" style={{ width: "100%", marginTop: "10px" }} onClick={() => setMode("login")}>Already have an account? Sign in</button>
+            </form>
+          ) : (
+            <form onSubmit={verifyRegistrationOtp}>
+              <p className="eyebrow">REGISTRATION EMAIL VERIFICATION</p>
+              <h2>Verify your email address</h2>
+              <p className="hint">Enter the 6-digit code sent to <strong>{registerForm.email}</strong> to complete registration.</p>
+              
+
+
+              <Field label="6-digit verification code" required inputMode="numeric" maxLength="6" value={regCode} onChange={(event) => setRegCode(event.target.value.replace(/\D/g, ""))} placeholder="e.g. 123456" />
+              <button className="login-button" type="submit">✅ Verify Code & Create Account</button>
+              <button type="button" className="text-button" style={{ width: "100%", marginTop: "10px" }} onClick={() => setPendingRegOtp(false)}>← Edit Registration Details / Fix Email Typo</button>
+            </form>
+          )
         ) : !pendingLogin ? (
           <form onSubmit={requestCode}>
             <p className="eyebrow">{mode === "officer" ? "REVENUE OFFICER PORTAL" : "PASSWORDLESS SIGN IN"}</p>

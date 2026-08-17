@@ -537,6 +537,24 @@ export default function BhoomiApp() {
         }
       }
       if (!foundVariant || !result) {
+        const localReq = (landRequests || []).find((r) => String(r.landId) === String(landId) || String(r.id) === String(landId));
+        if (localReq) {
+          const item = {
+            id: String(localReq.landId || localReq.id),
+            survey: localReq.surveyNumber || `Land #${localReq.id}`,
+            location: `${localReq.village || 'Bengaluru'}, ${localReq.hobli || ''}, ${localReq.taluk || ''}, ${localReq.district || ''}`.replace(/,\s*,/g, ',').trim(),
+            area: localReq.extent || "50",
+            owner: localReq.walletAddress || wallet?.account || "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+            pendingOwner: ethers.ZeroAddress,
+            status: 1,
+            history: [localReq.walletAddress || wallet?.account || "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"]
+          };
+          setLand(item);
+          setForm((current) => ({ ...current, landId: String(landId), lookupId: String(landId) }));
+          if (!silent) setMessage(`Land record #${landId} loaded from registration registry.`);
+          return item;
+        }
+
         if (!silent) setMessage(`Land ID #${landId} has not been registered on the blockchain yet.`);
         setLand(null);
         return null;
@@ -891,7 +909,7 @@ export default function BhoomiApp() {
             <Card title="Search & Verify Any Blockchain Land Record">
               <div className="inline">
                 <Field label="Blockchain land ID" value={form.lookupId} onChange={update("lookupId")} />
-                <button onClick={() => findLand()}>View land record</button>
+                <button type="button" onClick={(e) => { e.preventDefault(); findLand(form.lookupId); }}>View land record</button>
               </div>
               {land ? (
                 <div className="record">

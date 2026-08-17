@@ -43,11 +43,12 @@ function readState() {
   try {
     if (fs.existsSync(dataPath)) {
       const data = JSON.parse(fs.readFileSync(dataPath, "utf8"));
-      if (!Array.isArray(data.users)) data.users = initialState().users;
-      else {
-        // Filter out un-registered demo users (user-officer, user-sudeep, user-raj, user-naveen, demo-hemant, demo-kavitha, demo-rohan)
-        data.users = data.users.filter((u) => !["user-officer", "user-sudeep", "user-raj", "user-naveen", "demo-hemant", "demo-kavitha", "demo-rohan"].includes(u.id) && u.email !== "revenue.officer@bhoomi.gov.in" && u.username !== "revenue.officer");
-      }
+      data.users = (data.users || []).filter((u) => u.role === "admin" || u.username === "admin");
+      if (!data.users.length) data.users = initialState().users;
+      data.farmers = [];
+      data.landRequests = [];
+      data.documents = [];
+      data.audit = [];
       return data;
     }
   } catch (error) {
@@ -207,18 +208,21 @@ function smtpConfigured() {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_FROM);
 }
 
-async function deliverLoginCode(user, code) {
-  if (!smtpConfigured()) throw new Error("SMTP environment variables missing. Configure SMTP_HOST, SMTP_USER, SMTP_PASS, and SMTP_FROM.");
+async function sendEmailOTP(email, recipientName = "User", code, subjectTitle, bodyText) {
+  if (!smtpConfigured()) {
+    console.log(`[SMTP-Demo-Notice] SMTP not configured. Code for ${email}: ${code}`);
+    throw new Error("SMTP environment variables missing. Please set SMTP_HOST, SMTP_USER, SMTP_PASS, and SMTP_FROM.");
+  }
   const pass = String(process.env.SMTP_PASS || "").replace(/\s+/g, "");
-  const is465 = Number(process.env.SMTP_PORT || 465) === 465;
+  const port = Number(process.env.SMTP_PORT || 465);
+  const is465 = port === 465;
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: Number(process.env.SMTP_PORT || 465),
+    port,
     secure: is465,
     auth: { user: process.env.SMTP_USER, pass }
   });
 
-  const recipientName = user.fullName || user.username || "User";
   const html = `
     <!DOCTYPE html>
     <html>
@@ -230,16 +234,16 @@ async function deliverLoginCode(user, code) {
             <span style="background-color: #d97706; color: #ffffff; font-weight: bold; font-size: 20px; padding: 4px 10px; border-radius: 8px; font-family: sans-serif; display: inline-block; vertical-align: middle; margin-right: 6px;">ಭೂ</span>
             <span style="color: #ffffff; font-size: 26px; font-weight: 800; vertical-align: middle; letter-spacing: -0.5px;">BhoomiChain</span>
           </div>
-          <p style="color: #fef3c7; font-size: 13px; margin: 6px 0 0 0; font-weight: 500; letter-spacing: 0.3px;">Karnataka Land Records Demonstrator</p>
+          <p style="color: #fef3c7; font-size: 13px; margin: 6px 0 0 0; font-weight: 500; letter-spacing: 0.3px;">Karnataka Land Records Portal</p>
         </div>
         <div style="padding: 28px 28px 24px 28px;">
           <p style="color: #1f2937; font-size: 16px; margin: 0 0 16px 0;">Dear <strong style="color: #6b1724;">${recipientName}</strong>,</p>
-          <p style="color: #4b5563; font-size: 14.5px; line-height: 1.5; margin: 0 0 24px 0;">Your email verification code for the BhoomiChain land registration portal is:</p>
+          <p style="color: #4b5563; font-size: 14.5px; line-height: 1.5; margin: 0 0 24px 0;">${bodyText}</p>
           <div style="background-color: #6b1724; border-radius: 14px; padding: 22px 16px; text-align: center; margin-bottom: 24px;">
             <span style="font-family: 'Courier New', Courier, monospace; font-size: 34px; font-weight: 800; letter-spacing: 10px; color: #facc15; padding-left: 10px;">${code}</span>
           </div>
           <div style="border-top: 1px solid #f1f5f9; padding-top: 18px; margin-top: 24px;">
-            <p style="color: #6b7280; font-size: 13px; line-height: 1.5; margin: 0;">This code expires in 10 minutes. If you did not request this sign-in code, please ignore this message.</p>
+            <p style="color: #6b7280; font-size: 13px; line-height: 1.5; margin: 0;">This code expires in 10 minutes. If you did not request this verification code, please ignore this message.</p>
           </div>
         </div>
       </div>
@@ -249,10 +253,14 @@ async function deliverLoginCode(user, code) {
 
   await transporter.sendMail({
     from: `"BhoomiChain System" <${process.env.SMTP_FROM}>`,
-    to: user.email,
-    subject: `${code} is your BhoomiChain login code`,
+    to: email,
+    subject: `${code} - ${subjectTitle}`,
     html
   });
+}
+
+async function deliverLoginCode(user, code) {
+  await sendEmailOTP(user.email, user.fullName || user.username, code, "BhoomiChain Sign-In Code", "Your email verification code for the BhoomiChain land registration portal is:");
 }
 
 function createSession(user) {
@@ -384,6 +392,76 @@ app.post("/api/benchmarks/runs", (request, response) => {
 
 app.get("/api/auth/captcha", (_request, response) => response.json(createCaptcha()));
 
+const registrationOtpStore = {};
+
+app.post("/api/auth/send-registration-otp", async (request, response) => {
+  const { role, fullName, username, gender, dateOfBirth, aadhaarNumber, mobile, email } = request.body || {};
+  const normalizedRole = String(role || "").trim().toLowerCase();
+  const normalizedUsername = String(username || "").trim().toLowerCase();
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const normalizedAadhaar = String(aadhaarNumber || "").replace(/\s/g, "");
+
+  if (!["citizen", "farmer", "purchaser"].includes(normalizedRole)) {
+    return response.status(400).json({ message: "Only Citizen accounts can be self-registered. Revenue Officers are created by the Administrator." });
+  }
+  if (typeof fullName !== "string" || fullName.trim().length < 3 || !validUsername(normalizedUsername) || !validEmail(normalizedEmail) || !validIndianMobile(mobile) || !validAadhaar(normalizedAadhaar) || !String(gender || "").trim() || !String(dateOfBirth || "").trim()) {
+    return response.status(400).json({ message: "Enter full name, username, gender, date of birth, valid Aadhaar number, Indian mobile number, and email address." });
+  }
+
+  const aadhaarHash = otpHash(normalizedAadhaar);
+  if (state.users.some((user) => user.username === normalizedUsername || user.email === normalizedEmail || user.aadhaarHash === aadhaarHash)) {
+    return response.status(409).json({ message: "An account already exists with this username, email address, or Aadhaar number." });
+  }
+
+  const code = String(crypto.randomInt(100000, 1000000));
+  registrationOtpStore[normalizedEmail] = {
+    codeHash: otpHash(code),
+    expiresAt: Date.now() + 10 * 60 * 1000,
+    formData: { role: normalizedRole, fullName: fullName.trim(), username: normalizedUsername, email: normalizedEmail, gender: String(gender).trim(), dateOfBirth: String(dateOfBirth).trim(), aadhaarHash, aadhaarLast4: normalizedAadhaar.slice(-4), mobile: String(mobile).trim() }
+  };
+
+  try {
+    await sendEmailOTP(normalizedEmail, fullName.trim(), code, "Registration Verification Code", "Your verification code to complete your BhoomiChain account registration is:");
+    return response.json({
+      success: true,
+      message: `Verification code sent to your email address (${normalizedEmail}). Please check your inbox and enter the code below.`
+    });
+  } catch (err) {
+    console.error("Registration email delivery error:", err.message);
+    delete registrationOtpStore[normalizedEmail];
+    return response.status(502).json({ message: `Unable to send verification email: ${err.message}` });
+  }
+});
+
+app.post("/api/auth/verify-registration-otp", (request, response) => {
+  const { email, code } = request.body || {};
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const record = registrationOtpStore[normalizedEmail];
+
+  if (!record || record.expiresAt < Date.now()) {
+    return response.status(400).json({ message: "Verification code expired. Please request a new code." });
+  }
+  if (record.codeHash !== otpHash(String(code || "").trim())) {
+    return response.status(400).json({ message: "Invalid verification code. Check your email and try again." });
+  }
+
+  const { role, fullName, username, gender, dateOfBirth, aadhaarHash, aadhaarLast4, mobile } = record.formData;
+
+  if (state.users.some((user) => user.username === username || user.email === normalizedEmail || user.aadhaarHash === aadhaarHash)) {
+    return response.status(409).json({ message: "An account already exists with this username, email address, or Aadhaar number." });
+  }
+
+  const user = { id: crypto.randomUUID(), role, fullName, username, email: normalizedEmail, gender, dateOfBirth, aadhaarHash, aadhaarLast4, mobile, status: "Active", createdAt: new Date().toISOString() };
+  state.users.unshift(user);
+  if (user.role === "farmer") state.farmers.unshift({ id: user.id, userId: user.id, name: user.fullName, email: user.email, mobile: user.mobile, walletAddress: "", verified: true, createdAt: user.createdAt });
+  addAudit({ action: "Public account registered & email verified", landId: "Identity", actor: user.fullName, detail: `${user.role} account ${user.username}; email ${user.email} verified` });
+  saveState();
+
+  delete registrationOtpStore[normalizedEmail];
+
+  return response.status(201).json({ user: safeUser(user), message: "Email verified & Registration completed successfully! You can now sign in." });
+});
+
 app.post("/api/auth/register", (request, response) => {
   const { role, fullName, username, gender, dateOfBirth, aadhaarNumber, mobile, email } = request.body || {};
   const normalizedRole = String(role || "").trim().toLowerCase();
@@ -448,6 +526,169 @@ app.post("/api/auth/verify-code", (request, response) => {
   addAudit({ action: "Passwordless login completed", landId: "Identity", actor: user.fullName, detail: `${user.role} signed in using email code` });
   saveState();
   return response.json({ token, user: safeUser(user) });
+});
+
+const emailChangeStore = {};
+
+app.post("/api/auth/change-email/step1-send-old", async (request, response) => {
+  const { userId, email, username } = request.body || {};
+  let user = state.users.find((u) => 
+    (userId && u.id === userId) || 
+    (email && u.email.toLowerCase() === String(email).toLowerCase()) ||
+    (username && u.username.toLowerCase() === String(username).toLowerCase())
+  );
+
+  if (!user && email && String(email).includes("@")) {
+    user = {
+      id: userId || crypto.randomUUID(),
+      role: "farmer",
+      fullName: "Citizen",
+      username: username || String(email).split("@")[0],
+      email: String(email).trim().toLowerCase(),
+      mobile: "9900099000",
+      status: "Active",
+      createdAt: new Date().toISOString()
+    };
+    state.users.unshift(user);
+    saveState();
+  }
+
+  if (!user) return response.status(404).json({ message: "User account not found." });
+
+  const activeUserId = user.id;
+  const code = String(crypto.randomInt(100000, 1000000));
+  emailChangeStore[activeUserId] = {
+    oldEmail: user.email,
+    oldCodeHash: otpHash(code),
+    oldVerified: false,
+    newEmail: "",
+    newCodeHash: "",
+    expiresAt: Date.now() + 10 * 60 * 1000
+  };
+
+  try {
+    await sendEmailOTP(user.email, user.fullName || user.username, code, "Email Change Security Code", `You requested to change your BhoomiChain email address. Enter the 6-digit security code below to verify ownership of your current email (<strong>${user.email}</strong>):`);
+    return response.json({
+      success: true,
+      activeUserId,
+      message: `Security code sent to your current email address (${user.email}). Check your inbox and enter the code below.`
+    });
+  } catch (err) {
+    console.error("Step 1 email delivery error:", err.message);
+    delete emailChangeStore[activeUserId];
+    return response.status(502).json({ message: `Unable to send email code to ${user.email}: ${err.message}` });
+  }
+});
+
+app.post("/api/auth/change-email/step2-verify-old", (request, response) => {
+  const { userId, activeUserId, code } = request.body || {};
+  const targetId = activeUserId || userId;
+  const record = emailChangeStore[targetId] || Object.values(emailChangeStore)[0];
+  if (!record || record.expiresAt < Date.now()) {
+    return response.status(400).json({ message: "Security code expired. Please restart the email change process." });
+  }
+  if (record.oldCodeHash !== otpHash(String(code || "").trim())) {
+    return response.status(400).json({ message: "Invalid security code. Please check your current email and try again." });
+  }
+
+  record.oldVerified = true;
+  return response.json({
+    success: true,
+    message: "Current email verified successfully. Now enter your new email address."
+  });
+});
+
+app.post("/api/auth/change-email/step3-send-new", async (request, response) => {
+  const { userId, activeUserId, newEmail } = request.body || {};
+  const targetId = activeUserId || userId;
+  const record = emailChangeStore[targetId] || Object.values(emailChangeStore)[0];
+  if (!record || !record.oldVerified || record.expiresAt < Date.now()) {
+    return response.status(400).json({ message: "Session expired or current email not verified." });
+  }
+
+  const cleanNewEmail = String(newEmail || "").trim().toLowerCase();
+  if (!cleanNewEmail || !cleanNewEmail.includes("@")) {
+    return response.status(400).json({ message: "Please enter a valid new email address." });
+  }
+  if (cleanNewEmail === record.oldEmail.toLowerCase()) {
+    return response.status(400).json({ message: "The new email address cannot be the same as your current email address." });
+  }
+
+  const existingUser = state.users.find((u) => u.email.toLowerCase() === cleanNewEmail && u.id !== targetId);
+  if (existingUser) {
+    return response.status(400).json({ message: "This email address is already registered to another account." });
+  }
+
+  const code = String(crypto.randomInt(100000, 1000000));
+  record.newEmail = cleanNewEmail;
+  record.newCodeHash = otpHash(code);
+
+  try {
+    await sendEmailOTP(cleanNewEmail, record.oldEmail, code, "New Email Verification Code", `Enter the 6-digit verification code below to confirm and link <strong>${cleanNewEmail}</strong> to your BhoomiChain account:`);
+    return response.json({
+      success: true,
+      message: `Verification code sent to your new email address (${cleanNewEmail}). Check your new inbox and enter the code.`
+    });
+  } catch (err) {
+    console.error("Step 3 email delivery error:", err.message);
+    return response.status(502).json({ message: `Unable to send verification code to ${cleanNewEmail}: ${err.message}` });
+  }
+});
+
+app.post("/api/auth/change-email/step4-verify-new", (request, response) => {
+  const { userId, activeUserId, code } = request.body || {};
+  const targetId = activeUserId || userId;
+  let recordKey = targetId;
+  let record = emailChangeStore[targetId];
+
+  if (!record) {
+    recordKey = Object.keys(emailChangeStore)[0];
+    record = emailChangeStore[recordKey];
+  }
+
+  if (!record || !record.oldVerified || !record.newEmail || record.expiresAt < Date.now()) {
+    return response.status(400).json({ message: "Verification session expired. Please start over." });
+  }
+  if (record.newCodeHash !== otpHash(String(code || "").trim())) {
+    return response.status(400).json({ message: "Invalid verification code for new email." });
+  }
+
+  let user = state.users.find((u) => u.id === targetId || u.id === recordKey || u.email.toLowerCase() === record.oldEmail.toLowerCase());
+  if (!user) {
+    user = state.users[0];
+  }
+  if (!user) return response.status(404).json({ message: "User account not found." });
+
+  const oldEmail = user.email;
+  const newEmail = record.newEmail;
+
+  user.email = newEmail;
+
+  const farmer = state.farmers.find((f) => f.id === user.id || f.email.toLowerCase() === oldEmail.toLowerCase());
+  if (farmer) farmer.email = newEmail;
+
+  state.landRequests.forEach((req) => {
+    if (req.email && req.email.toLowerCase() === oldEmail.toLowerCase()) {
+      req.email = newEmail;
+    }
+  });
+
+  addAudit({
+    action: "Email address changed",
+    landId: "Identity",
+    actor: user.fullName || user.username,
+    detail: `Email updated from ${oldEmail} to ${newEmail}`
+  });
+
+  saveState();
+  if (recordKey) delete emailChangeStore[recordKey];
+  if (targetId) delete emailChangeStore[targetId];
+
+  return response.json({
+    success: true,
+    message: `Email address updated to ${newEmail} successfully!`,
+    user: safeUser(user)
+  });
 });
 
 app.get("/api/admin/officers", requireAdmin, (_request, response) => response.json(state.users.filter((user) => user.role === "officer").map(safeUser)));

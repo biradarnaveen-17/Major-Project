@@ -18,7 +18,10 @@ export function displayError(error, registry) {
 }
 
 export function shortAddress(value) {
-  return value ? `${value.slice(0, 6)}...${value.slice(-4)}` : "Not connected";
+  if (!value) return "Not connected";
+  const str = typeof value === "string" ? value : (value.owner || value.address || String(value));
+  if (typeof str !== "string" || str.length < 10) return String(str || "Not connected");
+  return `${str.slice(0, 6)}...${str.slice(-4)}`;
 }
 
 export function parcelMetadata(survey, district, taluk, hobli, village) {
