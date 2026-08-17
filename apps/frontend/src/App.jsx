@@ -1102,7 +1102,7 @@ export default function BhoomiApp() {
                     ))}
                   </SelectField>
                 )}
-                {session?.user?.role !== "officer" && session?.user?.role !== "admin" && (
+                {session?.user?.role !== "officer" && session?.user?.role !== "admin" && (!selectedLand || selectedLand.status === 0) && (
                   <SelectField label="Select Registered Purchaser" value={form.buyer} onChange={update("buyer")}>
                     <option value="">-- Select Registered Purchaser --</option>
                     {purchasers.map((p) => (
@@ -1143,35 +1143,34 @@ export default function BhoomiApp() {
                   >
                     {busyAction === "approve" ? "Approving..." : "Verify & Approve Mutation (Revenue Officer)"}
                   </button>
+                ) : selectedLand?.status === 2 ? (
+                  <button
+                    type="button"
+                    disabled={
+                      busyAction !== null ||
+                      !selectedLand ||
+                      selectedLand.status !== 2 ||
+                      !selectedLand.pendingOwner ||
+                      selectedLand.pendingOwner === ethers.ZeroAddress
+                    }
+                    onClick={() => submit("transfer")}
+                    style={{ background: "#15803d", color: "#fff", padding: "12px 20px", fontWeight: "bold" }}
+                  >
+                    {busyAction === "transfer" ? "Accepting..." : "Accept Ownership & Complete Transfer (Purchaser)"}
+                  </button>
                 ) : (
-                  <>
-                    <button
-                      type="button"
-                      disabled={
-                        busyAction !== null ||
-                        !form.landId ||
-                        (selectedLand && selectedLand.owner && wallet?.account && selectedLand.owner.toLowerCase() !== wallet.account.toLowerCase()) ||
-                        (selectedLand && selectedLand.status !== 0 && selectedLand.pendingOwner && selectedLand.pendingOwner !== ethers.ZeroAddress)
-                      }
-                      onClick={() => submit("request")}
-                    >
-                      {busyAction === "request" ? "Submitting..." : "1. Submit Mutation Request (Owner)"}
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={
-                        busyAction !== null ||
-                        !selectedLand ||
-                        selectedLand.status !== 2 ||
-                        !selectedLand.pendingOwner ||
-                        selectedLand.pendingOwner === ethers.ZeroAddress
-                      }
-                      onClick={() => submit("transfer")}
-                    >
-                      {busyAction === "transfer" ? "Accepting..." : "3. Accept Ownership (Purchaser)"}
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    disabled={
+                      busyAction !== null ||
+                      !form.landId ||
+                      (selectedLand && selectedLand.owner && wallet?.account && selectedLand.owner.toLowerCase() !== wallet.account.toLowerCase()) ||
+                      (selectedLand && selectedLand.status !== 0 && selectedLand.pendingOwner && selectedLand.pendingOwner !== ethers.ZeroAddress)
+                    }
+                    onClick={() => submit("request")}
+                  >
+                    {busyAction === "request" ? "Submitting..." : "1. Submit Mutation Request (Owner)"}
+                  </button>
                 )}
               </div>
               <p className="hint" style={{ marginTop: "12px" }}>Select a land parcel and registered purchaser, then click <strong>Submit mutation request</strong>. Revenue Officers verify requests, and purchasers click <strong>Accept ownership</strong> to complete the transfer.</p>
