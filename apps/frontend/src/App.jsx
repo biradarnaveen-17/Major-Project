@@ -13,7 +13,8 @@ import {
   OPTIMIZED_ABI,
   statusText,
   errorText,
-  DEMO_KEYS
+  DEMO_KEYS,
+  KARNATAKA_REVENUE_HIERARCHY
 } from "./config.js";
 import { displayError, shortAddress, parcelMetadata } from "./utils/helpers.js";
 import { Field, SelectField, Card, Metric, Pill } from "./components/UIComponents.jsx";
@@ -932,11 +933,87 @@ export default function BhoomiApp() {
             <Card title="Submit land-registration request">
               <form onSubmit={submitLandRequest}>
                 <div className="form-grid">
-                  <Field label="Survey number" value={form.survey} onChange={update("survey")} />
-                  <Field label="District" value={form.district} onChange={update("district")} />
-                  <Field label="Taluk" value={form.taluk} onChange={update("taluk")} />
-                  <Field label="Hobli" value={form.hobli} onChange={update("hobli")} />
-                  <Field label="Village" value={form.village} onChange={update("village")} />
+                  <Field label="Survey number" value={form.survey} onChange={update("survey")} placeholder="e.g. 12/3A" />
+                  
+                  <SelectField
+                    label="District"
+                    value={form.district}
+                    onChange={(e) => {
+                      const selectedDist = e.target.value;
+                      const taluks = Object.keys(KARNATAKA_REVENUE_HIERARCHY[selectedDist] || {});
+                      const firstTaluk = taluks[0] || "";
+                      const hoblis = Object.keys(KARNATAKA_REVENUE_HIERARCHY[selectedDist]?.[firstTaluk] || {});
+                      const firstHobli = hoblis[0] || "";
+                      const villages = KARNATAKA_REVENUE_HIERARCHY[selectedDist]?.[firstTaluk]?.[firstHobli] || [];
+                      const firstVillage = villages[0] || "";
+
+                      setForm((curr) => ({
+                        ...curr,
+                        district: selectedDist,
+                        taluk: firstTaluk,
+                        hobli: firstHobli,
+                        village: firstVillage
+                      }));
+                    }}
+                  >
+                    {Object.keys(KARNATAKA_REVENUE_HIERARCHY).map((dist) => (
+                      <option key={dist} value={dist}>{dist}</option>
+                    ))}
+                  </SelectField>
+
+                  <SelectField
+                    label="Taluk"
+                    value={form.taluk}
+                    onChange={(e) => {
+                      const selectedTaluk = e.target.value;
+                      const hoblis = Object.keys(KARNATAKA_REVENUE_HIERARCHY[form.district]?.[selectedTaluk] || {});
+                      const firstHobli = hoblis[0] || "";
+                      const villages = KARNATAKA_REVENUE_HIERARCHY[form.district]?.[selectedTaluk]?.[firstHobli] || [];
+                      const firstVillage = villages[0] || "";
+
+                      setForm((curr) => ({
+                        ...curr,
+                        taluk: selectedTaluk,
+                        hobli: firstHobli,
+                        village: firstVillage
+                      }));
+                    }}
+                  >
+                    {Object.keys(KARNATAKA_REVENUE_HIERARCHY[form.district] || {}).map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </SelectField>
+
+                  <SelectField
+                    label="Hobli"
+                    value={form.hobli}
+                    onChange={(e) => {
+                      const selectedHobli = e.target.value;
+                      const villages = KARNATAKA_REVENUE_HIERARCHY[form.district]?.[form.taluk]?.[selectedHobli] || [];
+                      const firstVillage = villages[0] || "";
+
+                      setForm((curr) => ({
+                        ...curr,
+                        hobli: selectedHobli,
+                        village: firstVillage
+                      }));
+                    }}
+                  >
+                    {Object.keys(KARNATAKA_REVENUE_HIERARCHY[form.district]?.[form.taluk] || {}).map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </SelectField>
+
+                  <SelectField
+                    label="Village"
+                    value={form.village}
+                    onChange={update("village")}
+                  >
+                    {(KARNATAKA_REVENUE_HIERARCHY[form.district]?.[form.taluk]?.[form.hobli] || []).map((v) => (
+                      <option key={v} value={v}>{v}</option>
+                    ))}
+                  </SelectField>
+
                   <Field label="Extent (gunta)" type="number" min="1" value={form.area} onChange={update("area")} />
                 </div>
                 <p className="hint">A matching Survey Number and revenue location can be requested only once. The request is first sent to the Revenue Officer; blockchain registration follows verification.</p>

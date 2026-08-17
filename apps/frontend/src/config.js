@@ -23,3 +23,136 @@ export const DEMO_KEYS = {
   buyer: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
   farmer: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
 };
+
+export const KARNATAKA_REVENUE_HIERARCHY = {
+  "Bengaluru Urban": {
+    "Bengaluru North": {
+      "Yelahanka": ["Jakkur", "Attur", "Kogilu", "Thanisandra", "Agrahara"],
+      "Hesaraghatta": ["Chikkabanavara", "Hesaraghatta Village", "Dasarahalli", "Byatha"],
+      "Kasaba North": ["Hebbal", "Nagavara", "RT Nagar"]
+    },
+    "Bengaluru South": {
+      "Begur": ["HSR Layout", "Begur Village", "Singasandra", "Bommanahalli"],
+      "Kengeri": ["Kumbalgodu", "Kengeri Satellite Town", "Vajarahalli"],
+      "Tavarekere": ["Chikka Gollarahatti", "Tavarekere Village"]
+    },
+    "Bengaluru East": {
+      "KR Puram": ["Hoodi", "Mahadevapura", "KR Puram Village", "Varthur"],
+      "Bidarahalli": ["Mandur", "Kannamangala", "Avalahalli"],
+      "Varthur": ["Gunjur", "Panathur", "Bhoganhalli"]
+    },
+    "Anekal": {
+      "Attibele": ["Attibele Town", "Sarjapura", "Chandapura"],
+      "Jigani": ["Jigani Industrial Area", "Bannerghatta", "Haragadde"],
+      "Kasaba Anekal": ["Anekal Town", "Marsur"]
+    }
+  },
+  "Bengaluru Rural": {
+    "Devanahalli": {
+      "Kasaba Devanahalli": ["Devanahalli Town", "Binnamangala", "Vijayapura"],
+      "Kundana": ["Kundana Village", "Koira"],
+      "Channarayapatna": ["Budigere", "Channarayapatna Town"]
+    },
+    "Doddaballapura": {
+      "Kasaba Doddaballapura": ["Doddaballapura Town", "Tubagere"],
+      "Tubagere": ["Ghati Subramanya", "Doddabelavangala"]
+    },
+    "Hoskote": {
+      "Kasaba Hoskote": ["Hoskote Town", "Sulibele"],
+      "Anugondanahalli": ["Anugondanahalli Village", "Jadigenahalli"]
+    },
+    "Nelamangala": {
+      "Kasaba Nelamangala": ["Nelamangala Town", "T Begur"],
+      "Tyamagondlu": ["Tyamagondlu Town", "Dobbaspet"]
+    }
+  },
+  "Mysuru": {
+    "Mysuru Taluk": {
+      "Kasaba Mysuru": ["Nanjangud Road", "Hebbal Mysuru", "Hootagalli"],
+      "Varuna": ["Varuna Village", "Jayapura", "Yelwal"],
+      "Jayapura": ["Udbur", "Kadakola"]
+    },
+    "Nanjangud": {
+      "Kasaba Nanjangud": ["Nanjangud Town", "Hullahalli"],
+      "Hullahalli": ["Hullahalli Village", "Kowlande"]
+    },
+    "Hunsur": {
+      "Kasaba Hunsur": ["Hunsur Town", "Gaviranga"],
+      "Bilikere": ["Bilikere Village", "Hanagod"]
+    }
+  },
+  "Belagavi": {
+    "Belagavi Taluk": {
+      "Kasaba Belagavi": ["Belagavi City", "Peeranwadi"],
+      "Kakati": ["Kakati Village", "Bhopal"]
+    },
+    "Gokak": {
+      "Kasaba Gokak": ["Gokak Town", "Koujalgi"],
+      "Arabhavi": ["Arabhavi Village", "Ankalgi"]
+    },
+    "Chikkodi": {
+      "Kasaba Chikkodi": ["Chikkodi Town", "Nipani"],
+      "Sadalga": ["Sadalga Town", "Koganolli"]
+    }
+  },
+  "Kalaburagi": {
+    "Kalaburagi Taluk": {
+      "Kasaba Kalaburagi": ["Kalaburagi Town", "Farhatabad"],
+      "Farhatabad": ["Farhatabad Village", "Kotnoor"]
+    },
+    "Sedam": {
+      "Kasaba Sedam": ["Sedam Town", "Malkhed"],
+      "Malkhed": ["Malkhed Fort", "Mudhol Sedam"]
+    }
+  },
+  "Dakshina Kannada": {
+    "Mangaluru": {
+      "Mangaluru Hobli": ["Surathkal", "Panambur", "Kavoor"],
+      "Gurupura": ["Gurupura Village", "Ganjimutt"]
+    },
+    "Bantwal": {
+      "Bantwal Hobli": ["Bantwal Town", "BC Road"],
+      "Vittal": ["Vittal Town", "Kalladka"]
+    }
+  },
+  "Tumakuru": {
+    "Tumakuru Taluk": {
+      "Kasaba Tumakuru": ["Tumakuru Town", "Kyathsandra"],
+      "Urdigere": ["Devarayanadurga", "Urdigere Village"]
+    },
+    "Gubbi": {
+      "Kasaba Gubbi": ["Gubbi Town", "Nittur"],
+      "Chelur": ["Chelur Village", "C S Pura"]
+    }
+  },
+  "Mandya": {
+    "Mandya Taluk": {
+      "Kasaba Mandya": ["Mandya Town", "Kothathi"],
+      "Dudda": ["Dudda Village", "Basaralu"]
+    },
+    "Srirangapatna": {
+      "Kasaba Srirangapatna": ["Srirangapatna Town", "Palandi"],
+      "KRS": ["KRS Dam Area", "Ganjam"]
+    }
+  },
+  "Hassan": {
+    "Hassan Taluk": {
+      "Kasaba Hassan": ["Hassan Town", "Shanthigrama"],
+      "Salagame": ["Salagame Village", "Kattaya"]
+    },
+    "Channarayapatna": {
+      "Kasaba Channarayapatna": ["Channarayapatna Town", "Nuggehalli"],
+      "Shravanabelagola": ["Shravanabelagola Town", "Hirisave"]
+    }
+  },
+  "Shivamogga": {
+    "Shivamogga Taluk": {
+      "Kasaba Shivamogga": ["Shivamogga City", "Holehonnur"],
+      "Holehonnur": ["Holehonnur Town", "Kumsi"]
+    },
+    "Sagara": {
+      "Kasaba Sagara": ["Sagara Town", "Anandapuram"],
+      "Kargal": ["Jog Falls", "Kargal Town"]
+    }
+  }
+};
