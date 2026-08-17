@@ -780,14 +780,6 @@ app.get("/api/farmers/:id/land-holdings", (request, response) => {
   return response.json(state.landRequests.filter((item) => item.farmerId === farmer.id));
 });
 
-function getNextNumericLandId() {
-  const existingIds = (state.landRequests || [])
-    .map((r) => Number(r.landId || r.id))
-    .filter((n) => !isNaN(n) && n >= 9000);
-  const max = existingIds.length > 0 ? Math.max(...existingIds) : 9004;
-  return String(max + 1);
-}
-
 app.post("/api/land-requests", (request, response) => {
   const { farmerId, farmerName, email, mobile, surveyNumber, district, taluk, hobli, village, extent, walletAddress } = request.body || {};
   let farmer = state.farmers.find((item) => item.id === farmerId && item.verified);
@@ -831,10 +823,10 @@ app.post("/api/land-requests", (request, response) => {
   if (state.landRequests.some((item) => item.parcelKey === parcelKey || normalizedParcelKey(item) === parcelKey)) {
     return response.status(409).json({ message: "This Survey Number and revenue location already have a land-registration request. Duplicate land registration is not allowed." });
   }
-  const nextLandId = getNextNumericLandId();
+  const uuid = crypto.randomUUID();
   const landRequest = {
-    id: nextLandId,
-    landId: nextLandId,
+    id: uuid,
+    landId: uuid,
     farmerId: farmer.id,
     farmerName: farmer.name,
     email: farmer.email,

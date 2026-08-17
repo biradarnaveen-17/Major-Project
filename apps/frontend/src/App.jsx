@@ -882,7 +882,7 @@ export default function BhoomiApp() {
 
   function prepareBlockchainRegistration(request) {
     const ownerWallet = (request.walletAddress && ethers.isAddress(request.walletAddress)) ? request.walletAddress : DEMO_ACCOUNTS.farmer;
-    const targetLandId = (request.landId && /^\d+$/.test(String(request.landId))) ? String(request.landId) : (request.id && /^\d+$/.test(String(request.id))) ? String(request.id) : String(Date.now());
+    const targetLandId = String(request.landId || request.id || Date.now());
     setForm((current) => ({
       ...current,
       landId: targetLandId,
@@ -897,7 +897,7 @@ export default function BhoomiApp() {
     }));
     setPendingRequestId(request.id);
     setView("registry");
-    setMessage(`Verified request for ${request.farmerName} loaded (Land ID #${targetLandId}). Register it on blockchain to complete.`);
+    setMessage(`Verified request for ${request.farmerName} loaded. Register it on blockchain to complete.`);
   }
 
   async function verifyDocument(id) {
