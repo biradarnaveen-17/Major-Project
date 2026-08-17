@@ -249,7 +249,10 @@ export default function BhoomiApp() {
     const transferredList = JSON.parse(localStorage.getItem("bhoomi_transferred_lands") || "[]");
     
     const list = landRequests.filter((item) => {
-      const isOwnerAcc = item.walletAddress && item.walletAddress.toLowerCase() === currentAccount;
+      const ownerWallet = (item.walletAddress || "").toLowerCase();
+      if (ownerWallet && currentAccount && ownerWallet !== currentAccount) return false;
+
+      const isOwnerAcc = ownerWallet === currentAccount;
       const isTransferredToMe = item.landId && transferredList.includes(String(item.landId));
       const isMyFarmerReq = farmer && (item.farmerId === farmer.id || item.email === farmer.email);
       return isOwnerAcc || isTransferredToMe || isMyFarmerReq;
@@ -1126,6 +1129,7 @@ export default function BhoomiApp() {
                   disabled={
                     busyAction !== null ||
                     !form.landId ||
+                    (selectedLand && selectedLand.owner && wallet?.account && selectedLand.owner.toLowerCase() !== wallet.account.toLowerCase()) ||
                     (selectedLand && selectedLand.status !== 0 && selectedLand.pendingOwner && selectedLand.pendingOwner !== ethers.ZeroAddress) ||
                     session?.user?.role === "officer" || session?.user?.role === "admin"
                   }
