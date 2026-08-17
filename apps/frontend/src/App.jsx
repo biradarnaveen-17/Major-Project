@@ -394,24 +394,25 @@ export default function BhoomiApp() {
 
   function resolveName(addr) {
     if (!addr || addr === ethers.ZeroAddress) return "None";
-    const clean = String(addr).toLowerCase();
-    
-    if (session?.user?.fullName && (String(wallet?.account || "").toLowerCase() === clean || String(session.user.walletAddress || "").toLowerCase() === clean)) {
-      return session.user.fullName;
-    }
-    
-    if (clean === "0x70997970c51812dc3a010c7d01b50e0d17dc79c8") return "Sudeep (Purchaser)";
-    if (clean === "0x90f79bf6eb2c4f870365e785982e1f101e93b906") return "Raj boss";
-    if (clean === "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc") return "Naveen Rayagondappa Biradar";
-    if (clean === "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266") return "Karnataka Revenue Authority";
-    
+    const strAddr = typeof addr === "string" ? addr : (addr.owner || addr.address || String(addr));
+    const clean = String(strAddr).toLowerCase();
+
     const foundPurchaser = (purchasers || []).find((p) => String(p.walletAddress || "").toLowerCase() === clean);
     if (foundPurchaser && foundPurchaser.fullName) return foundPurchaser.fullName;
 
-    const foundFarmer = landRequests.find((r) => String(r.walletAddress || "").toLowerCase() === clean);
+    const foundFarmer = (landRequests || []).find((r) => String(r.walletAddress || "").toLowerCase() === clean);
     if (foundFarmer && foundFarmer.farmerName) return foundFarmer.farmerName;
 
-    return "Khatedar (" + shortAddress(addr) + ")";
+    if (clean === "0x70997970c51812dc3a010c7d01b50e0d17dc79c8") return "Sri. Sudeep";
+    if (clean === "0x90f79bf6eb2c4f870365e785982e1f101e93b906") return "Sri. Raj";
+    if (clean === "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc") return "Farmer Khatedar";
+    if (clean === "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266") return "Karnataka Revenue Authority";
+
+    if (session?.user?.fullName && (String(wallet?.account || "").toLowerCase() === clean || String(session.user.walletAddress || "").toLowerCase() === clean)) {
+      return session.user.fullName;
+    }
+
+    return "Khatedar (" + shortAddress(strAddr) + ")";
   }
 
   useEffect(() => {
