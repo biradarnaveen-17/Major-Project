@@ -47,6 +47,7 @@ export default function BhoomiApp() {
   const [documentForm, setDocumentForm] = useState({ landId: "", category: "RTC / Pahani extract", reference: "", hash: "" });
   const [form, setForm] = useState({ landId: DEFAULT_DEMO_LAND_ID, owner: "", survey: "12/3A", district: "Bengaluru Urban", taluk: "Bengaluru North", hobli: "Yelahanka", village: "Jakkur", area: "48", buyer: "", lookupId: "" });
   const [purchasers, setPurchasers] = useState([]);
+  const [purchaserQuery, setPurchaserQuery] = useState("");
   const [loadReport, setLoadReport] = useState(null);
   const [runningLoadTest, setRunningLoadTest] = useState(false);
   const [loadProgress, setLoadProgress] = useState("");
@@ -278,6 +279,14 @@ export default function BhoomiApp() {
     }
     return list;
   }, [myLandRequests, landRequests, land, wallet, farmer]);
+
+  const availablePurchasers = useMemo(() => {
+    return (purchasers || []).filter((p) => {
+      const isMeWallet = wallet?.account && String(p.walletAddress || "").toLowerCase() === String(wallet.account).toLowerCase();
+      const isMeUser = session?.user?.username && String(p.username || "").toLowerCase() === String(session.user.username).toLowerCase();
+      return !isMeWallet && !isMeUser;
+    });
+  }, [purchasers, wallet, session]);
 
   const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
   const updateDocument = (key) => (event) => setDocumentForm((current) => ({ ...current, [key]: event.target.value }));
@@ -1103,12 +1112,26 @@ export default function BhoomiApp() {
                   </SelectField>
                 )}
                 {session?.user?.role !== "officer" && session?.user?.role !== "admin" && (!selectedLand || selectedLand.status === 0) && (
-                  <SelectField label="Select Registered Purchaser" value={form.buyer} onChange={update("buyer")}>
-                    <option value="">-- Select Registered Purchaser --</option>
-                    {purchasers.map((p) => (
-                      <option key={p.id} value={p.walletAddress}>{p.fullName} ({p.username}) - {shortAddress(p.walletAddress)}</option>
-                    ))}
-                  </SelectField>
+                  <div style={{ display: "grid", gap: "8px", gridColumn: "1 / -1", background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0", margin: "6px 0" }}>
+                    <Field
+                      label="🔍 Search Registered Purchaser"
+                      placeholder="Type name or username (e.g. sudeep, raj)..."
+                      value={purchaserQuery}
+                      onChange={(e) => setPurchaserQuery(e.target.value)}
+                    />
+                    <SelectField label="Nominate Purchaser for Transfer" value={form.buyer} onChange={update("buyer")}>
+                      <option value="">-- Select Registered Purchaser --</option>
+                      {availablePurchasers
+                        .filter((p) => {
+                          if (!purchaserQuery.trim()) return true;
+                          const q = purchaserQuery.toLowerCase();
+                          return p.fullName?.toLowerCase().includes(q) || p.username?.toLowerCase().includes(q) || p.walletAddress?.toLowerCase().includes(q);
+                        })
+                        .map((p) => (
+                          <option key={p.id} value={p.walletAddress}>{p.fullName} ({p.username}) - {shortAddress(p.walletAddress)}</option>
+                        ))}
+                    </SelectField>
+                  </div>
                 )}
               </div>
 
