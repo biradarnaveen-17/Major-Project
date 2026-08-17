@@ -565,23 +565,32 @@ export default function BhoomiApp() {
     return wallet?.signer || new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
   }
 
-  async function findLand(landId = form.lookupId, silent = false) {
-    if (!landId) return null;
+  function toNumericLandId(id) {
+    if (!id) return "0";
+    const str = String(id).trim();
+    if (/^\d+$/.test(str)) return str;
+    const hash = ethers.keccak256(ethers.toUtf8Bytes(str));
+    return (BigInt(hash) % 900000000000n + 100000000000n).toString();
+  }
+
+  async function findLand(landIdInput = form.lookupId, silent = false) {
+    if (!landIdInput) return null;
     const activeProvider = wallet?.provider || defaultProvider;
+    const numericId = toNumericLandId(landIdInput);
     try {
-      localStorage.setItem("bhoomi_active_land_id", String(landId));
+      localStorage.setItem("bhoomi_active_land_id", String(landIdInput));
       let currentVariant = variant;
       let result = null;
       let foundVariant = null;
       try {
-        result = await contract().getLandDetails.staticCall(landId);
+        result = await contract().getLandDetails.staticCall(numericId);
         foundVariant = currentVariant;
       } catch {
         const altVariant = currentVariant === "optimized" ? "base" : "optimized";
         const altAddress = ADDRESSES[altVariant];
         const altContract = new ethers.Contract(altAddress, altVariant === "base" ? BASE_ABI : OPTIMIZED_ABI, activeProvider);
         try {
-          result = await altContract.getLandDetails.staticCall(landId);
+          result = await altContract.getLandDetails.staticCall(numericId);
           foundVariant = altVariant;
           setVariant(altVariant);
           setAddress(altAddress);
@@ -590,7 +599,7 @@ export default function BhoomiApp() {
         }
       }
       if (!foundVariant || !result) {
-        const localReq = (landRequests || []).find((r) => String(r.landId) === String(landId) || String(r.id) === String(landId));
+        const localReq = (landRequests || []).find((r) => String(r.landId) === String(landIdInput) || String(r.id) === String(landIdInput));
         if (localReq) {
           const item = {
             id: String(localReq.landId || localReq.id),
@@ -603,24 +612,24 @@ export default function BhoomiApp() {
             history: [localReq.walletAddress || wallet?.account || "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"]
           };
           setLand(item);
-          setForm((current) => ({ ...current, landId: String(landId), lookupId: String(landId) }));
-          if (!silent) setMessage(`Land record #${landId} loaded from registration registry.`);
+          setForm((current) => ({ ...current, landId: String(landIdInput), lookupId: String(landIdInput) }));
+          if (!silent) setMessage(`Land record #${landIdInput} loaded from registration registry.`);
           return item;
         }
 
-        if (!silent) setMessage(`Land ID #${landId} has not been registered on the blockchain yet.`);
+        if (!silent) setMessage(`Land ID #${landIdInput} has not been registered on the blockchain yet.`);
         setLand(null);
         return null;
       }
       const item = foundVariant === "base"
         ? { id: result[0].toString(), survey: result[1], location: result[2], area: result[3].toString(), owner: result[4], pendingOwner: result[5], status: Number(result[6]), history: result[7] }
-        : { id: String(landId), metadataHash: result[2], area: result[1].toString(), owner: result[0], pendingOwner: result[3], status: Number(result[4]), history: result[5] };
+        : { id: String(landIdInput), metadataHash: result[2], area: result[1].toString(), owner: result[0], pendingOwner: result[3], status: Number(result[4]), history: result[5] };
       setLand(item);
-      setForm((current) => ({ ...current, landId: String(landId), lookupId: String(landId) }));
-      if (!silent) setMessage(`Land record #${landId} loaded from blockchain (${foundVariant === "optimized" ? "Optimized" : "Base"} contract).`);
+      setForm((current) => ({ ...current, landId: String(landIdInput), lookupId: String(landIdInput) }));
+      if (!silent) setMessage(`Land record #${landIdInput} loaded from blockchain (${foundVariant === "optimized" ? "Optimized" : "Base"} contract).`);
       return item;
     } catch {
-      if (!silent) setMessage(`Unable to retrieve land record #${landId}.`);
+      if (!silent) setMessage(`Unable to retrieve land record #${landIdInput}.`);
       setLand(null);
       return null;
     }
@@ -630,6 +639,7 @@ export default function BhoomiApp() {
     let registry;
     try {
       setBusyAction(action);
+      const numericLandId = toNumericLandId(form.landId);
       let targetLand = selectedLand;
       if (action !== "register") {
         if (!targetLand || String(targetLand.id) !== String(form.landId)) {
@@ -684,7 +694,7 @@ export default function BhoomiApp() {
         if (!form.survey.trim() || !revenueLocation) throw new Error("Survey number and revenue location details are required.");
 
         try {
-          await registry.getLandDetails.staticCall(form.landId);
+          await registry.getLandDetails.staticCall(numericLandId);
           throw new Error(errorText.DuplicateRegistration);
         } catch (error) {
           if (error?.message === errorText.DuplicateRegistration) throw error;
@@ -694,8 +704,8 @@ export default function BhoomiApp() {
         
         try {
           tx = variant === "base"
-            ? await registry["registerLand(uint256,address,string,string,uint256)"](form.landId, validOwner, form.survey, revenueLocation, form.area)
-            : await registry["registerLand(uint256,address,bytes32,uint96)"](form.landId, validOwner, metadataHash, form.area);
+            ? await registry["registerLand(uint256,address,string,string,uint256)"](numericLandId, validOwner, form.survey, revenueLocation, form.area)
+            : await registry["registerLand(uint256,address,bytes32,uint96)"](numericLandId, validOwner, metadataHash, form.area);
         } catch (contractErr) {
           const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet.provider);
           const authorityRegistry = contract(true, authoritySigner);
@@ -710,8 +720,8 @@ export default function BhoomiApp() {
           }
           
           tx = variant === "base"
-            ? await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](form.landId, validOwner, form.survey, revenueLocation, form.area)
-            : await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](form.landId, validOwner, metadataHash, form.area);
+            ? await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](numericLandId, validOwner, form.survey, revenueLocation, form.area)
+            : await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](numericLandId, validOwner, metadataHash, form.area);
         }
       }
       if (action === "request") {
@@ -724,26 +734,26 @@ export default function BhoomiApp() {
         if (!ethers.isAddress(targetBuyer)) throw new Error("Please select a registered purchaser from the dropdown list.");
 
         try {
-          await registry.getLandDetails.staticCall(form.landId);
+          await registry.getLandDetails.staticCall(numericLandId);
         } catch {
           const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet.provider);
           const authorityRegistry = contract(true, authoritySigner);
           const ownerAddr = targetLand?.owner || wallet?.account || DEMO_ACCOUNTS.farmer;
-          const surveyNum = targetLand?.survey || form.survey || `SUR-${form.landId}`;
+          const surveyNum = targetLand?.survey || form.survey || `SUR-${numericLandId}`;
           const loc = targetLand?.location || `${form.village}, ${form.hobli}, ${form.taluk}, ${form.district}`;
           const areaVal = targetLand?.area || form.area || "48";
           const metaHash = ethers.keccak256(ethers.toUtf8Bytes(parcelMetadata(surveyNum, form.district, form.taluk, form.hobli, form.village)));
           
           const regTx = variant === "base"
-            ? await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](form.landId, ownerAddr, surveyNum, loc, areaVal)
-            : await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](form.landId, ownerAddr, metaHash, areaVal);
+            ? await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](numericLandId, ownerAddr, surveyNum, loc, areaVal)
+            : await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](numericLandId, ownerAddr, metaHash, areaVal);
           await regTx.wait();
         }
 
-        tx = await registry.requestTransfer(form.landId, targetBuyer);
+        tx = await registry.requestTransfer(numericLandId, targetBuyer);
       }
-      if (action === "approve") tx = await registry.approveTransfer(form.landId);
-      if (action === "transfer") tx = await registry.transferOwnership(form.landId);
+      if (action === "approve") tx = await registry.approveTransfer(numericLandId);
+      if (action === "transfer") tx = await registry.transferOwnership(numericLandId);
       const receipt = await tx.wait(); const gasPrice = receipt.gasPrice || 0n;
       const newGas = Number(receipt.gasUsed);
       const opName = action === "request" ? "requestTransfer" : action === "approve" ? "approveTransfer" : action === "transfer" ? "transferOwnership" : action === "register" ? "registerLand" : action;
