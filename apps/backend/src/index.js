@@ -300,7 +300,7 @@ app.get("/health", (_request, response) => {
 });
 
 function getWalletForUser(u) {
-  if (u.walletAddress && typeof u.walletAddress === "string" && u.walletAddress.startsWith("0x")) return u.walletAddress;
+  if (u.walletAddress && typeof u.walletAddress === "string" && ethers.isAddress(u.walletAddress)) return u.walletAddress;
   const pk = ethers.keccak256(ethers.toUtf8Bytes(String(u.id || u.username)));
   return new ethers.Wallet(pk).address;
 }
