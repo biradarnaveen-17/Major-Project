@@ -239,20 +239,22 @@ export default function BhoomiApp() {
           item.farmerId === farmer.id ||
           item.email === farmer.email ||
           (item.farmerName && session?.user?.fullName && item.farmerName.toLowerCase() === session.user.fullName.toLowerCase()) ||
-          (item.walletAddress && wallet?.account && item.walletAddress.toLowerCase() === wallet.account.toLowerCase())
+          (item.walletAddress && wallet?.account && item.walletAddress.toLowerCase() === wallet.account.toLowerCase()) ||
+          (item.landId && JSON.parse(localStorage.getItem("bhoomi_transferred_lands") || "[]").includes(String(item.landId)))
       )
     : [];
 
   const allMyHoldings = useMemo(() => {
     const currentAccount = wallet?.account?.toLowerCase();
-    const list = myLandRequests.filter((item) => {
-      if (item.status === "Registered on blockchain" && item.landId) {
-        if (land && String(land.id) === String(item.landId)) {
-          return land.owner?.toLowerCase() === currentAccount;
-        }
-      }
-      return true;
+    const transferredList = JSON.parse(localStorage.getItem("bhoomi_transferred_lands") || "[]");
+    
+    const list = landRequests.filter((item) => {
+      const isOwnerAcc = item.walletAddress && item.walletAddress.toLowerCase() === currentAccount;
+      const isTransferredToMe = item.landId && transferredList.includes(String(item.landId));
+      const isMyFarmerReq = farmer && (item.farmerId === farmer.id || item.email === farmer.email);
+      return isOwnerAcc || isTransferredToMe || isMyFarmerReq;
     });
+
     if (land && land.owner?.toLowerCase() === currentAccount) {
       if (!list.some((item) => String(item.landId) === String(land.id))) {
         list.unshift({
@@ -270,7 +272,7 @@ export default function BhoomiApp() {
       }
     }
     return list;
-  }, [myLandRequests, land, wallet]);
+  }, [myLandRequests, landRequests, land, wallet, farmer]);
 
   const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
   const updateDocument = (key) => (event) => setDocumentForm((current) => ({ ...current, [key]: event.target.value }));
@@ -633,6 +635,25 @@ export default function BhoomiApp() {
         });
         return { ...currentReport, rows: updatedRows };
       });
+      if (action === "transfer") {
+        try {
+          const newOwnerWallet = await signer.getAddress();
+          const newOwnerName = session?.user?.fullName || resolveName(newOwnerWallet);
+          await api(`/api/land-requests/transfer-owner/${form.landId}`, {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ newOwnerWallet, newOwnerName })
+          });
+          const savedOwned = JSON.parse(localStorage.getItem("bhoomi_transferred_lands") || "[]");
+          if (!savedOwned.includes(String(form.landId))) {
+            savedOwned.push(String(form.landId));
+            localStorage.setItem("bhoomi_transferred_lands", JSON.stringify(savedOwned));
+          }
+          await loadPortalData();
+        } catch (e) {
+          console.warn("Transfer owner sync skipped:", e.message);
+        }
+      }
       if (action === "register" && pendingRequestId) {
         try {
           const registeredRequest = await api(`/api/land-requests/${pendingRequestId}/registered`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ landId: form.landId, transactionHash: tx.hash }) });

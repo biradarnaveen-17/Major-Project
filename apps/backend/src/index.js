@@ -583,6 +583,19 @@ app.patch("/api/land-requests/:id/registered", (request, response) => {
   return response.json(landRequest);
 });
 
+app.patch("/api/land-requests/transfer-owner/:landId", (request, response) => {
+  const { newOwnerWallet, newOwnerName } = request.body || {};
+  const landIdStr = String(request.params.landId);
+  let landRequest = state.landRequests.find((item) => String(item.landId) === landIdStr);
+  if (landRequest) {
+    if (newOwnerWallet) landRequest.walletAddress = newOwnerWallet;
+    if (newOwnerName) landRequest.farmerName = newOwnerName;
+    addAudit({ action: "Ownership mutation transferred", landId: landIdStr, actor: newOwnerName || "Purchaser", detail: `New Khatedar: ${newOwnerName} (${newOwnerWallet})` });
+    saveState();
+  }
+  return response.json(landRequest || { message: "Ownership transferred." });
+});
+
 app.get("/api/documents", (_request, response) => response.json(state.documents));
 
 app.post("/api/documents", (request, response) => {
