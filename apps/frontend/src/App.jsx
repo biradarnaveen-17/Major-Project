@@ -882,10 +882,22 @@ export default function BhoomiApp() {
 
   function prepareBlockchainRegistration(request) {
     const ownerWallet = (request.walletAddress && ethers.isAddress(request.walletAddress)) ? request.walletAddress : DEMO_ACCOUNTS.farmer;
-    setForm((current) => ({ ...current, landId: String(Date.now()), owner: ownerWallet, survey: request.surveyNumber, district: request.district, taluk: request.taluk, hobli: request.hobli, village: request.village, area: request.extent, lookupId: current.lookupId }));
+    const targetLandId = (request.landId && /^\d+$/.test(String(request.landId))) ? String(request.landId) : (request.id && /^\d+$/.test(String(request.id))) ? String(request.id) : String(Date.now());
+    setForm((current) => ({
+      ...current,
+      landId: targetLandId,
+      owner: ownerWallet,
+      survey: request.surveyNumber,
+      district: request.district,
+      taluk: request.taluk,
+      hobli: request.hobli,
+      village: request.village,
+      area: request.extent,
+      lookupId: targetLandId
+    }));
     setPendingRequestId(request.id);
     setView("registry");
-    setMessage(`Verified request for ${request.farmerName} loaded. Register it on blockchain to complete the process.`);
+    setMessage(`Verified request for ${request.farmerName} loaded (Land ID #${targetLandId}). Register it on blockchain to complete.`);
   }
 
   async function verifyDocument(id) {

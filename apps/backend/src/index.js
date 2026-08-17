@@ -780,6 +780,14 @@ app.get("/api/farmers/:id/land-holdings", (request, response) => {
   return response.json(state.landRequests.filter((item) => item.farmerId === farmer.id));
 });
 
+function getNextNumericLandId() {
+  const existingIds = (state.landRequests || [])
+    .map((r) => Number(r.landId || r.id))
+    .filter((n) => !isNaN(n) && n >= 9000);
+  const max = existingIds.length > 0 ? Math.max(...existingIds) : 9004;
+  return String(max + 1);
+}
+
 app.post("/api/land-requests", (request, response) => {
   const { farmerId, farmerName, email, mobile, surveyNumber, district, taluk, hobli, village, extent, walletAddress } = request.body || {};
   let farmer = state.farmers.find((item) => item.id === farmerId && item.verified);
@@ -823,7 +831,28 @@ app.post("/api/land-requests", (request, response) => {
   if (state.landRequests.some((item) => item.parcelKey === parcelKey || normalizedParcelKey(item) === parcelKey)) {
     return response.status(409).json({ message: "This Survey Number and revenue location already have a land-registration request. Duplicate land registration is not allowed." });
   }
-  const landRequest = { id: crypto.randomUUID(), farmerId: farmer.id, farmerName: farmer.name, email: farmer.email, mobile: farmer.mobile, walletAddress: String(walletAddress || farmer.walletAddress).trim(), surveyNumber: String(surveyNumber).trim(), district: String(district).trim(), taluk: String(taluk).trim(), hobli: String(hobli).trim(), village: String(village).trim(), extent: String(extent).trim(), parcelKey, status: "Submitted", createdAt: new Date().toISOString(), verifiedAt: null, registeredAt: null, landId: null, transactionHash: null };
+  const nextLandId = getNextNumericLandId();
+  const landRequest = {
+    id: nextLandId,
+    landId: nextLandId,
+    farmerId: farmer.id,
+    farmerName: farmer.name,
+    email: farmer.email,
+    mobile: farmer.mobile,
+    walletAddress: String(walletAddress || farmer.walletAddress).trim(),
+    surveyNumber: String(surveyNumber).trim(),
+    district: String(district).trim(),
+    taluk: String(taluk).trim(),
+    hobli: String(hobli).trim(),
+    village: String(village).trim(),
+    extent: String(extent).trim(),
+    parcelKey,
+    status: "Submitted",
+    createdAt: new Date().toISOString(),
+    verifiedAt: null,
+    registeredAt: null,
+    transactionHash: null
+  };
   state.landRequests.unshift(landRequest);
   addAudit({ action: "Land registration requested", landId: landRequest.surveyNumber, actor: farmer.name, detail: `${landRequest.village}, ${landRequest.taluk}, ${landRequest.district}` });
   saveState();
