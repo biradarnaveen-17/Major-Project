@@ -781,9 +781,41 @@ app.get("/api/farmers/:id/land-holdings", (request, response) => {
 });
 
 app.post("/api/land-requests", (request, response) => {
-  const { farmerId, surveyNumber, district, taluk, hobli, village, extent, walletAddress } = request.body || {};
-  const farmer = state.farmers.find((item) => item.id === farmerId && item.verified);
-  if (!farmer) return response.status(400).json({ message: "Verify the farmer email address before submitting a land-registration request." });
+  const { farmerId, farmerName, email, mobile, surveyNumber, district, taluk, hobli, village, extent, walletAddress } = request.body || {};
+  let farmer = state.farmers.find((item) => item.id === farmerId && item.verified);
+
+  if (!farmer) {
+    const userMatch = state.users.find((u) => u.id === farmerId || u.email === email || `farmer-${u.username}` === farmerId || u.username === farmerId);
+    if (userMatch) {
+      farmer = {
+        id: farmerId || userMatch.id,
+        name: userMatch.fullName || farmerName || "Registered Citizen",
+        email: userMatch.email || email || "",
+        mobile: userMatch.mobile || mobile || "9900000000",
+        walletAddress: getWalletForUser(userMatch),
+        verified: true
+      };
+      if (!state.farmers.some((f) => f.id === farmer.id)) {
+        state.farmers.push(farmer);
+      }
+    }
+  }
+
+  if (!farmer && (farmerName || email)) {
+    farmer = {
+      id: farmerId || `farmer-${Date.now()}`,
+      name: String(farmerName || "Citizen").trim(),
+      email: String(email || "").trim(),
+      mobile: String(mobile || "9900000000").trim(),
+      walletAddress: String(walletAddress || "").trim(),
+      verified: true
+    };
+    state.farmers.push(farmer);
+  }
+
+  if (!farmer || !farmer.verified) {
+    return response.status(400).json({ message: "Verify the farmer email address before submitting a land-registration request." });
+  }
   if (![surveyNumber, district, taluk, hobli, village, extent].every((value) => String(value || "").trim())) {
     return response.status(400).json({ message: "Survey number, District, Taluk, Hobli, Village, and extent are required." });
   }

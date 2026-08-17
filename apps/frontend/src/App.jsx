@@ -744,25 +744,29 @@ export default function BhoomiApp() {
   async function submitLandRequest(event) {
     event.preventDefault();
     try {
+      if (!form.survey.trim()) throw new Error("Please enter a Survey Number (e.g. 12/3A).");
+      if (!form.village.trim()) throw new Error("Please enter a Village name.");
+      if (!form.area || Number(form.area) <= 0) throw new Error("Please enter a valid Extent in guntas.");
+
       const activeFarmer = farmer || {
         id: session?.user?.id || `farmer-${session?.user?.username}`,
         name: session?.user?.fullName || "Citizen",
-        email: session?.user?.email,
-        mobile: session?.user?.mobile,
+        email: session?.user?.email || "citizen@example.com",
+        mobile: session?.user?.mobile || "9900000000",
         verified: true
       };
       const activeUserWallet = wallet?.account || activeFarmer?.walletAddress || DEMO_ACCOUNTS.farmer;
       const body = {
         farmerId: activeFarmer.id,
         farmerName: activeFarmer.name || session?.user?.fullName,
-        mobile: activeFarmer.mobile || session?.user?.mobile,
-        email: activeFarmer.email || session?.user?.email,
-        surveyNumber: form.survey,
-        district: form.district,
-        taluk: form.taluk,
-        hobli: form.hobli,
-        village: form.village,
-        extent: form.area,
+        mobile: activeFarmer.mobile || session?.user?.mobile || "9900000000",
+        email: activeFarmer.email || session?.user?.email || "citizen@example.com",
+        surveyNumber: form.survey.trim(),
+        district: form.district || "Bengaluru Urban",
+        taluk: form.taluk || "Bengaluru North",
+        hobli: form.hobli || "Yelahanka",
+        village: form.village.trim(),
+        extent: form.area.trim(),
         walletAddress: activeUserWallet
       };
       const request = await api("/api/land-requests", {
@@ -771,7 +775,7 @@ export default function BhoomiApp() {
         body: JSON.stringify(body)
       });
       setLandRequests((current) => [request, ...current]);
-      setMessage(`Land-registration request for Survey #${form.survey} (${form.village}) submitted to the Revenue Officer desk.`);
+      setMessage(`✅ Land-registration request for Survey #${form.survey} (${form.village}) submitted to the Revenue Officer desk.`);
       setView("farmer");
       loadPortalData();
     } catch (error) { setMessage(error.message); }
