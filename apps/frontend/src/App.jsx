@@ -709,12 +709,35 @@ export default function BhoomiApp() {
 
   async function submitLandRequest(event) {
     event.preventDefault();
-    if (!farmer?.verified) return setMessage("Verify the farmer email address before submitting a request.");
     try {
-      const activeUserWallet = wallet?.account || farmer?.walletAddress || DEMO_ACCOUNTS.farmer;
-      const request = await api("/api/land-requests", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ farmerId: farmer.id, surveyNumber: form.survey, district: form.district, taluk: form.taluk, hobli: form.hobli, village: form.village, extent: form.area, walletAddress: activeUserWallet }) });
+      const activeFarmer = farmer || {
+        id: session?.user?.id || `farmer-${session?.user?.username}`,
+        name: session?.user?.fullName || "Citizen",
+        email: session?.user?.email,
+        mobile: session?.user?.mobile,
+        verified: true
+      };
+      const activeUserWallet = wallet?.account || activeFarmer?.walletAddress || DEMO_ACCOUNTS.farmer;
+      const body = {
+        farmerId: activeFarmer.id,
+        farmerName: activeFarmer.name || session?.user?.fullName,
+        mobile: activeFarmer.mobile || session?.user?.mobile,
+        email: activeFarmer.email || session?.user?.email,
+        surveyNumber: form.survey,
+        district: form.district,
+        taluk: form.taluk,
+        hobli: form.hobli,
+        village: form.village,
+        extent: form.area,
+        walletAddress: activeUserWallet
+      };
+      const request = await api("/api/land-requests", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body)
+      });
       setLandRequests((current) => [request, ...current]);
-      setMessage("Land-registration request submitted to the Revenue Officer desk.");
+      setMessage(`Land-registration request for Survey #${form.survey} (${form.village}) submitted to the Revenue Officer desk.`);
       setView("farmer");
       loadPortalData();
     } catch (error) { setMessage(error.message); }
@@ -884,7 +907,7 @@ export default function BhoomiApp() {
                   <Field label="Extent (gunta)" type="number" min="1" value={form.area} onChange={update("area")} />
                 </div>
                 <p className="hint">A matching Survey Number and revenue location can be requested only once. The request is first sent to the Revenue Officer; blockchain registration follows verification.</p>
-                <button type="submit" disabled={!farmer?.verified}>Submit land-registration request</button>
+                <button type="submit">Submit land-registration request</button>
               </form>
             </Card>
           </section>
