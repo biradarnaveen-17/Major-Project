@@ -500,17 +500,20 @@ export default function BhoomiApp() {
     }
   }, [view]);
 
-  function contract(withSigner = false, signer = wallet?.signer) {
+  const defaultProvider = useMemo(() => wallet?.provider || new ethers.JsonRpcProvider(RPC_URL), [wallet]);
+
+  function contract(withSigner = false, customSigner = null) {
     if (!ethers.isAddress(address)) throw new Error("Enter a valid deployed contract address.");
-    if (withSigner && !signer) throw new Error("An account is still connecting. Try again in a moment.");
-    return new ethers.Contract(address, variant === "base" ? BASE_ABI : OPTIMIZED_ABI, withSigner ? signer : provider);
+    const activeProvider = wallet?.provider || defaultProvider;
+    const activeSigner = customSigner || wallet?.signer || new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
+    return new ethers.Contract(address, variant === "base" ? BASE_ABI : OPTIMIZED_ABI, withSigner ? activeSigner : activeProvider);
   }
 
   async function signerFor(action, targetLand = selectedLand || land) {
-    if (!wallet?.provider) return wallet?.signer;
+    const activeProvider = wallet?.provider || defaultProvider;
 
     if (action === "approve" || action === "register") {
-      return new ethers.Wallet(DEMO_KEYS.authority, wallet.provider);
+      return new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
     }
 
     if (action === "request" && targetLand?.owner && ethers.isAddress(targetLand.owner)) {
@@ -518,11 +521,14 @@ export default function BhoomiApp() {
       const ownerUser = (purchasers || []).find((p) => String(p.walletAddress || "").toLowerCase() === ownerAddr);
       if (ownerUser) {
         const pk = ownerUser.privateKey || ethers.keccak256(ethers.toUtf8Bytes(String(ownerUser.id || ownerUser.username)));
-        return new ethers.Wallet(pk, wallet.provider);
+        return new ethers.Wallet(pk, activeProvider);
       }
-      if (ownerAddr === "0x70997970c51812dc3a010c7d01b50e0d17dc79c8") return new ethers.Wallet(DEMO_KEYS.buyer, wallet.provider);
-      if (ownerAddr === "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc") return new ethers.Wallet(DEMO_KEYS.farmer, wallet.provider);
-      if (ownerAddr === "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266") return new ethers.Wallet(DEMO_KEYS.authority, wallet.provider);
+      if (ownerAddr === "0x70997970c51812dc3a010c7d01b50e0d17dc79c8") return new ethers.Wallet(DEMO_KEYS.buyer, activeProvider);
+      if (ownerAddr === "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc") return new ethers.Wallet(DEMO_KEYS.farmer, activeProvider);
+      if (ownerAddr === "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266") return new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
+
+      const pk = ethers.keccak256(ethers.toUtf8Bytes(String(targetLand.owner)));
+      return new ethers.Wallet(pk, activeProvider);
     }
 
     if (action === "transfer" && targetLand?.pendingOwner && ethers.isAddress(targetLand.pendingOwner)) {
@@ -530,18 +536,22 @@ export default function BhoomiApp() {
       const buyerUser = (purchasers || []).find((p) => String(p.walletAddress || "").toLowerCase() === buyerAddr);
       if (buyerUser) {
         const pk = buyerUser.privateKey || ethers.keccak256(ethers.toUtf8Bytes(String(buyerUser.id || buyerUser.username)));
-        return new ethers.Wallet(pk, wallet.provider);
+        return new ethers.Wallet(pk, activeProvider);
       }
-      if (buyerAddr === "0x70997970c51812dc3a010c7d01b50e0d17dc79c8") return new ethers.Wallet(DEMO_KEYS.buyer, wallet.provider);
-      if (buyerAddr === "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc") return new ethers.Wallet(DEMO_KEYS.farmer, wallet.provider);
-      if (buyerAddr === "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266") return new ethers.Wallet(DEMO_KEYS.authority, wallet.provider);
+      if (buyerAddr === "0x70997970c51812dc3a010c7d01b50e0d17dc79c8") return new ethers.Wallet(DEMO_KEYS.buyer, activeProvider);
+      if (buyerAddr === "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc") return new ethers.Wallet(DEMO_KEYS.farmer, activeProvider);
+      if (buyerAddr === "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266") return new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
+
+      const pk = ethers.keccak256(ethers.toUtf8Bytes(String(targetLand.pendingOwner)));
+      return new ethers.Wallet(pk, activeProvider);
     }
 
-    return wallet?.signer;
+    return wallet?.signer || new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
   }
 
   async function findLand(landId = form.lookupId, silent = false) {
     if (!landId) return null;
+    const activeProvider = wallet?.provider || defaultProvider;
     try {
       localStorage.setItem("bhoomi_active_land_id", String(landId));
       let currentVariant = variant;
@@ -553,7 +563,7 @@ export default function BhoomiApp() {
       } catch {
         const altVariant = currentVariant === "optimized" ? "base" : "optimized";
         const altAddress = ADDRESSES[altVariant];
-        const altContract = new ethers.Contract(altAddress, altVariant === "base" ? BASE_ABI : OPTIMIZED_ABI, provider);
+        const altContract = new ethers.Contract(altAddress, altVariant === "base" ? BASE_ABI : OPTIMIZED_ABI, activeProvider);
         try {
           result = await altContract.getLandDetails.staticCall(landId);
           foundVariant = altVariant;
@@ -613,13 +623,14 @@ export default function BhoomiApp() {
           throw new Error(`Land ID #${form.landId} is not registered on the active contract.`);
         }
       }
+      const activeProvider = wallet?.provider || defaultProvider;
       const signer = await signerFor(action, targetLand);
       
       try {
         const signerAddress = await signer.getAddress();
-        const signerBalance = await wallet.provider.getBalance(signerAddress);
+        const signerBalance = await activeProvider.getBalance(signerAddress);
         if (signerBalance < ethers.parseEther("0.1")) {
-          const faucet = new ethers.Wallet(DEMO_KEYS.authority, wallet.provider);
+          const faucet = new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
           const fundTx = await faucet.sendTransaction({
             to: signerAddress,
             value: ethers.parseEther("1.0")
