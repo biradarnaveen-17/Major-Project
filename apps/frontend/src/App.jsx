@@ -1562,17 +1562,17 @@ export default function BhoomiApp() {
               </p>
 
               <div className="document-table">
-                <div className="table-row heading" style={{ gridTemplateColumns: "1fr 1.2fr 1fr 1fr 1fr 1.2fr" }}>
+                <div className="table-row heading" style={{ gridTemplateColumns: "1fr 1.2fr 1.2fr 1fr 0.8fr 1.2fr" }}>
                   <span>Process / Operation</span>
                   <span>Contract Used & Address</span>
-                  <span>EVM Gas Used</span>
+                  <span>Gas Used (EVM)</span>
                   <span>Est. Cost (ETH)</span>
                   <span>Block #</span>
                   <span>Transaction Hash</span>
                 </div>
 
                 {liveTransactions.map((txItem, idx) => (
-                  <div className="table-row" key={txItem.hash || idx} style={{ gridTemplateColumns: "1fr 1.2fr 1fr 1fr 1fr 1.2fr", alignItems: "center" }}>
+                  <div className="table-row" key={txItem.hash || idx} style={{ gridTemplateColumns: "1fr 1.2fr 1.2fr 1fr 0.8fr 1.2fr", alignItems: "center" }}>
                     <span>
                       <strong style={{ textTransform: "capitalize", color: "#1e3a8a" }}>
                         {txItem.operation || txItem.process || "registerLand"}
@@ -1590,10 +1590,12 @@ export default function BhoomiApp() {
                     </span>
 
                     <span>
-                      <strong style={{ color: txItem.variant === "optimized" ? "#15803d" : "#b45309", fontSize: "1.05rem" }}>
-                        {Number(txItem.gas).toLocaleString()} gas
-                      </strong>
-                      <small style={{ display: "block" }}>{txItem.variant === "optimized" ? "~30% gas savings" : "Standard EVM storage"}</small>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: txItem.variant === "optimized" ? "#dcfce7" : "#fef3c7", color: txItem.variant === "optimized" ? "#15803d" : "#b45309", padding: "4px 8px", borderRadius: "6px", fontWeight: "bold", fontSize: "0.95rem" }}>
+                          ⛽ {Number(txItem.gas).toLocaleString()} gas
+                        </span>
+                        <small style={{ color: "#64748b", fontSize: "0.72rem" }}>{txItem.variant === "optimized" ? "~30.3% gas saved" : "Standard storage"}</small>
+                      </div>
                     </span>
 
                     <span>
@@ -1627,20 +1629,34 @@ export default function BhoomiApp() {
 
             <Card title="System Audit Register Sync" action={<button className="text-button" onClick={loadPortalData}>Refresh audit</button>}>
               <div className="document-table">
-                <div className="table-row heading" style={{ gridTemplateColumns: "1.5fr 1fr 2fr 1.5fr" }}>
+                <div className="table-row heading" style={{ gridTemplateColumns: "1.2fr 1fr 1.2fr 1.8fr 1.2fr" }}>
                   <span>Action</span>
                   <span>Actor</span>
+                  <span>Gas Used (EVM)</span>
                   <span>Detail & Gas Metrics</span>
                   <span>Timestamp</span>
                 </div>
-                {audit.slice(0, 15).map((entry) => (
-                  <div className="table-row" key={entry.id} style={{ gridTemplateColumns: "1.5fr 1fr 2fr 1.5fr" }}>
-                    <span><strong>{entry.action}</strong><small>Land #{entry.landId || "N/A"}</small></span>
-                    <span><Pill tone="purple">{entry.actor}</Pill></span>
-                    <span>{entry.detail}</span>
-                    <span><small>{new Date(entry.timestamp).toLocaleString()}</small></span>
-                  </div>
-                ))}
+                {audit.slice(0, 15).map((entry) => {
+                  const gasMatch = entry.detail ? entry.detail.match(/(\d[\d,]*\s*gas)/i) : null;
+                  const gasStr = gasMatch ? gasMatch[1] : "N/A";
+                  return (
+                    <div className="table-row" key={entry.id} style={{ gridTemplateColumns: "1.2fr 1fr 1.2fr 1.8fr 1.2fr" }}>
+                      <span><strong>{entry.action}</strong><small>Land #{entry.landId || "N/A"}</small></span>
+                      <span><Pill tone="purple">{entry.actor}</Pill></span>
+                      <span>
+                        {gasStr !== "N/A" ? (
+                          <span style={{ background: "#f1f5f9", padding: "3px 8px", borderRadius: "4px", fontWeight: "bold", color: "#1e293b", fontSize: "0.85rem" }}>
+                            ⛽ {gasStr}
+                          </span>
+                        ) : (
+                          <small style={{ color: "#94a3b8" }}>State mutation</small>
+                        )}
+                      </span>
+                      <span>{entry.detail}</span>
+                      <span><small>{new Date(entry.timestamp).toLocaleString()}</small></span>
+                    </div>
+                  );
+                })}
               </div>
             </Card>
           </section>
