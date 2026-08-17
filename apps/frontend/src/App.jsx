@@ -290,9 +290,9 @@ export default function BhoomiApp() {
   }, [purchasers, wallet, session]);
 
   const filteredPurchasers = useMemo(() => {
+    if (!purchaserQuery.trim()) return [];
+    const q = purchaserQuery.trim().toLowerCase();
     return availablePurchasers.filter((p) => {
-      if (!purchaserQuery.trim()) return true;
-      const q = purchaserQuery.trim().toLowerCase();
       return (
         p.fullName?.toLowerCase().includes(q) ||
         p.username?.toLowerCase().includes(q) ||
@@ -458,15 +458,7 @@ export default function BhoomiApp() {
     loadPortalData();
   }, [view, session]);
 
-  useEffect(() => {
-    if (purchasers.length > 0) {
-      const currentAcc = (selectedLand?.owner || wallet?.account || "").toLowerCase();
-      const available = purchasers.filter((p) => p.walletAddress.toLowerCase() !== currentAcc);
-      if (available.length > 0 && (!form.buyer || !available.some((p) => p.walletAddress === form.buyer))) {
-        setForm((current) => ({ ...current, buyer: available[0].walletAddress }));
-      }
-    }
-  }, [purchasers, selectedLand, wallet]);
+
 
   useEffect(() => {
     loadPortalData();
@@ -1291,56 +1283,58 @@ export default function BhoomiApp() {
                   <div style={{ display: "grid", gap: "10px", gridColumn: "1 / -1", background: "#f8fafc", padding: "14px", borderRadius: "10px", border: "1px solid #cbd5e1", margin: "6px 0" }}>
                     <Field
                       label="🔍 Instant Purchaser Search (Type Name or Username)"
-                      placeholder="Type name or username (e.g. sudeep, raj)..."
+                      placeholder="Type name or username to search (e.g. sudeep, raj, hemant)..."
                       value={purchaserQuery}
                       onChange={(e) => setPurchaserQuery(e.target.value)}
                     />
 
-                    <div style={{ display: "grid", gap: "6px" }}>
-                      <label style={{ fontSize: "0.85rem", fontWeight: "600", color: "#334155" }}>
-                        Matching Registered Purchasers ({filteredPurchasers.length}):
-                      </label>
-                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", margin: "4px 0" }}>
-                        {filteredPurchasers.map((p) => {
-                          const isSelected = form.buyer === p.walletAddress;
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              style={{
-                                padding: "8px 14px",
-                                borderRadius: "6px",
-                                border: isSelected ? "2px solid #1e3a8a" : "1px solid #94a3b8",
-                                backgroundColor: isSelected ? "#1e3a8a" : "#ffffff",
-                                color: isSelected ? "#ffffff" : "#0f172a",
-                                fontWeight: isSelected ? "bold" : "600",
-                                fontSize: "0.9rem",
-                                cursor: "pointer",
-                                boxShadow: isSelected ? "0 2px 4px rgba(30,58,138,0.25)" : "none"
-                              }}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                setForm((curr) => ({ ...curr, buyer: p.walletAddress }));
-                              }}
-                            >
-                              {isSelected ? "✓ " : ""}{p.fullName} (@{p.username})
-                            </button>
-                          );
-                        })}
-                        {filteredPurchasers.length === 0 && (
-                          <span style={{ fontSize: "0.85rem", color: "#dc2626", fontWeight: "500" }}>
-                            No registered user matches "{purchaserQuery}". Available purchasers: {availablePurchasers.map((p) => p.fullName || p.username).join(", ") || "None"}
-                          </span>
-                        )}
+                    {purchaserQuery.trim() !== "" && (
+                      <div style={{ display: "grid", gap: "6px" }}>
+                        <label style={{ fontSize: "0.85rem", fontWeight: "600", color: "#334155" }}>
+                          Matching Search Results ({filteredPurchasers.length}):
+                        </label>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", margin: "4px 0" }}>
+                          {filteredPurchasers.map((p) => {
+                            const isSelected = form.buyer === p.walletAddress;
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                style={{
+                                  padding: "8px 14px",
+                                  borderRadius: "6px",
+                                  border: isSelected ? "2px solid #1e3a8a" : "1px solid #94a3b8",
+                                  backgroundColor: isSelected ? "#1e3a8a" : "#ffffff",
+                                  color: isSelected ? "#ffffff" : "#0f172a",
+                                  fontWeight: isSelected ? "bold" : "600",
+                                  fontSize: "0.9rem",
+                                  cursor: "pointer",
+                                  boxShadow: isSelected ? "0 2px 4px rgba(30,58,138,0.25)" : "none"
+                                }}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setForm((curr) => ({ ...curr, buyer: p.walletAddress }));
+                                }}
+                              >
+                                {isSelected ? "✓ " : ""}{p.fullName} (@{p.username})
+                              </button>
+                            );
+                          })}
+                          {filteredPurchasers.length === 0 && (
+                            <span style={{ fontSize: "0.85rem", color: "#dc2626", fontWeight: "500" }}>
+                              No registered purchaser matches "{purchaserQuery}".
+                            </span>
+                          )}
+                        </div>
                       </div>
+                    )}
 
-                      <SelectField label="Selected Purchaser Wallet for Mutation" value={form.buyer} onChange={update("buyer")}>
-                        <option value="">-- Select Registered Purchaser --</option>
-                        {availablePurchasers.map((p) => (
-                          <option key={p.id} value={p.walletAddress}>{p.fullName} ({p.username}) - {shortAddress(p.walletAddress)}</option>
-                        ))}
-                      </SelectField>
-                    </div>
+                    <SelectField label="Select Registered Purchaser for Transfer" value={form.buyer} onChange={update("buyer")}>
+                      <option value="">-- Select Registered Purchaser --</option>
+                      {availablePurchasers.map((p) => (
+                        <option key={p.id} value={p.walletAddress}>{p.fullName} ({p.username}) - {shortAddress(p.walletAddress)}</option>
+                      ))}
+                    </SelectField>
                   </div>
                 )}
               </div>
