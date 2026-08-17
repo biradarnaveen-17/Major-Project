@@ -882,10 +882,10 @@ export default function BhoomiApp() {
 
   function prepareBlockchainRegistration(request) {
     const ownerWallet = (request.walletAddress && ethers.isAddress(request.walletAddress)) ? request.walletAddress : DEMO_ACCOUNTS.farmer;
-    const targetLandId = String(request.landId || request.id || Date.now());
+    const freshLandId = String(Date.now());
     setForm((current) => ({
       ...current,
-      landId: targetLandId,
+      landId: freshLandId,
       owner: ownerWallet,
       survey: request.surveyNumber,
       district: request.district,
@@ -893,11 +893,11 @@ export default function BhoomiApp() {
       hobli: request.hobli,
       village: request.village,
       area: request.extent,
-      lookupId: targetLandId
+      lookupId: freshLandId
     }));
     setPendingRequestId(request.id);
     setView("registry");
-    setMessage(`Verified request for ${request.farmerName} loaded. Register it on blockchain to complete.`);
+    setMessage(`Verified request for ${request.farmerName} loaded. Click Register verified request on blockchain to mint Land ID #${freshLandId}.`);
   }
 
   async function verifyDocument(id) {
@@ -1131,16 +1131,24 @@ export default function BhoomiApp() {
                         </small>
                       )}
                     </span>
-                    <span>{request.landId ? (
-                      <div style={{ display: "grid", gap: "6px" }}>
-                        <strong>Land #{request.landId}</strong>
-                        <button className="small-button" onClick={async (e) => {
-                          e.preventDefault();
-                          const found = await findLand(request.landId).catch(() => null);
-                          setCertificateLand({ id: String(request.landId), survey: request.surveyNumber, location: `${request.village}, ${request.hobli}, ${request.taluk}, ${request.district}`, area: request.extent, owner: request.walletAddress || DEMO_ACCOUNTS.farmer, status: 0, history: [request.walletAddress || DEMO_ACCOUNTS.farmer], ...(found || {}) });
-                        }}>📜 View Certificate</button>
-                      </div>
-                    ) : <small>Awaiting officer action</small>}</span>
+                    <span>
+                      {request.status === "Registered on blockchain" && request.landId ? (
+                        <div style={{ display: "grid", gap: "6px" }}>
+                          <strong>Land #{request.landId}</strong>
+                          <button className="small-button" onClick={async (e) => {
+                            e.preventDefault();
+                            const found = await findLand(request.landId).catch(() => null);
+                            setCertificateLand({ id: String(request.landId), survey: request.surveyNumber, location: `${request.village}, ${request.hobli}, ${request.taluk}, ${request.district}`, area: request.extent, owner: request.walletAddress || DEMO_ACCOUNTS.farmer, status: 0, history: [request.walletAddress || DEMO_ACCOUNTS.farmer], ...(found || {}) });
+                          }}>📜 View Certificate</button>
+                        </div>
+                      ) : request.status === "Verified" ? (
+                        <small style={{ color: "#2563eb", fontWeight: "600" }}>⚡ Verified (Awaiting Blockchain Minting)</small>
+                      ) : request.status === "Rejected" ? (
+                        <small style={{ color: "#dc2626", fontWeight: "600" }}>❌ Registration Rejected</small>
+                      ) : (
+                        <small style={{ color: "#d97706", fontWeight: "600" }}>⏳ Pending Officer Verification</small>
+                      )}
+                    </span>
                   </div>
                 ))}
               </div>

@@ -823,10 +823,10 @@ app.post("/api/land-requests", (request, response) => {
   if (state.landRequests.some((item) => item.parcelKey === parcelKey || normalizedParcelKey(item) === parcelKey)) {
     return response.status(409).json({ message: "This Survey Number and revenue location already have a land-registration request. Duplicate land registration is not allowed." });
   }
-  const numericLandId = String(Date.now());
+  const requestId = crypto.randomUUID();
   const landRequest = {
-    id: numericLandId,
-    landId: numericLandId,
+    id: requestId,
+    landId: null,
     farmerId: farmer.id,
     farmerName: farmer.name,
     email: farmer.email,
