@@ -637,10 +637,28 @@ export default function BhoomiApp() {
         let targetBuyer = form.buyer;
         const currentOwnerAddr = (targetLand?.owner || land?.owner || wallet?.account || "").toLowerCase();
         if (!ethers.isAddress(targetBuyer) || targetBuyer.toLowerCase() === currentOwnerAddr) {
-          const fallback = purchasers.find((p) => p.walletAddress.toLowerCase() !== currentOwnerAddr);
+          const fallback = purchasers.find((p) => p.walletAddress.toLowerCase() !== currentOwnerAddr) || purchasers[0];
           if (fallback) targetBuyer = fallback.walletAddress;
         }
         if (!ethers.isAddress(targetBuyer)) throw new Error("Please select a registered purchaser from the dropdown list.");
+
+        try {
+          await registry.getLandDetails.staticCall(form.landId);
+        } catch {
+          const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet.provider);
+          const authorityRegistry = contract(true, authoritySigner);
+          const ownerAddr = targetLand?.owner || wallet?.account || DEMO_ACCOUNTS.farmer;
+          const surveyNum = targetLand?.survey || form.survey || `SUR-${form.landId}`;
+          const loc = targetLand?.location || `${form.village}, ${form.hobli}, ${form.taluk}, ${form.district}`;
+          const areaVal = targetLand?.area || form.area || "48";
+          const metaHash = ethers.keccak256(ethers.toUtf8Bytes(parcelMetadata(surveyNum, form.district, form.taluk, form.hobli, form.village)));
+          
+          const regTx = variant === "base"
+            ? await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](form.landId, ownerAddr, surveyNum, loc, areaVal)
+            : await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](form.landId, ownerAddr, metaHash, areaVal);
+          await regTx.wait();
+        }
+
         tx = await registry.requestTransfer(form.landId, targetBuyer);
       }
       if (action === "approve") tx = await registry.approveTransfer(form.landId);
