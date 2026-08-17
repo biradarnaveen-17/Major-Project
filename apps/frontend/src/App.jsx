@@ -944,15 +944,12 @@ export default function BhoomiApp() {
                       const firstTaluk = taluks[0] || "";
                       const hoblis = Object.keys(KARNATAKA_REVENUE_HIERARCHY[selectedDist]?.[firstTaluk] || {});
                       const firstHobli = hoblis[0] || "";
-                      const villages = KARNATAKA_REVENUE_HIERARCHY[selectedDist]?.[firstTaluk]?.[firstHobli] || [];
-                      const firstVillage = villages[0] || "";
 
                       setForm((curr) => ({
                         ...curr,
                         district: selectedDist,
                         taluk: firstTaluk,
-                        hobli: firstHobli,
-                        village: firstVillage
+                        hobli: firstHobli
                       }));
                     }}
                   >
@@ -968,14 +965,11 @@ export default function BhoomiApp() {
                       const selectedTaluk = e.target.value;
                       const hoblis = Object.keys(KARNATAKA_REVENUE_HIERARCHY[form.district]?.[selectedTaluk] || {});
                       const firstHobli = hoblis[0] || "";
-                      const villages = KARNATAKA_REVENUE_HIERARCHY[form.district]?.[selectedTaluk]?.[firstHobli] || [];
-                      const firstVillage = villages[0] || "";
 
                       setForm((curr) => ({
                         ...curr,
                         taluk: selectedTaluk,
-                        hobli: firstHobli,
-                        village: firstVillage
+                        hobli: firstHobli
                       }));
                     }}
                   >
@@ -989,13 +983,9 @@ export default function BhoomiApp() {
                     value={form.hobli}
                     onChange={(e) => {
                       const selectedHobli = e.target.value;
-                      const villages = KARNATAKA_REVENUE_HIERARCHY[form.district]?.[form.taluk]?.[selectedHobli] || [];
-                      const firstVillage = villages[0] || "";
-
                       setForm((curr) => ({
                         ...curr,
-                        hobli: selectedHobli,
-                        village: firstVillage
+                        hobli: selectedHobli
                       }));
                     }}
                   >
@@ -1004,15 +994,7 @@ export default function BhoomiApp() {
                     ))}
                   </SelectField>
 
-                  <SelectField
-                    label="Village"
-                    value={form.village}
-                    onChange={update("village")}
-                  >
-                    {(KARNATAKA_REVENUE_HIERARCHY[form.district]?.[form.taluk]?.[form.hobli] || []).map((v) => (
-                      <option key={v} value={v}>{v}</option>
-                    ))}
-                  </SelectField>
+                  <Field label="Village" value={form.village} onChange={update("village")} placeholder="Type village name..." />
 
                   <Field label="Extent (gunta)" type="number" min="1" value={form.area} onChange={update("area")} />
                 </div>
