@@ -1198,7 +1198,16 @@ export default function BhoomiApp() {
                 <Field label="Extent (gunta)" type="number" min="1" value={form.area} onChange={update("area")} />
               </div>
               <p className="hint">1 acre = 40 gunta. Land IDs must be unique. The optimized registry saves a deterministic hash of survey and revenue-location data; the reference registry stores it as readable metadata.</p>
-              <button disabled={busyAction !== null || (session?.user?.role !== "officer" && session?.user?.role !== "admin" && isRegistrar === false)} onClick={() => submit("register")}>{busyAction === "register" ? "Recording in blockchain..." : pendingRequestId ? "Register verified request on blockchain" : "Register land record"}</button>
+              <button
+                type="button"
+                disabled={busyAction !== null}
+                onClick={(e) => {
+                  e.preventDefault();
+                  submit("register");
+                }}
+              >
+                {busyAction === "register" ? "Recording in blockchain..." : pendingRequestId ? "Register verified request on blockchain" : "Register land record"}
+              </button>
             </Card>
 
             <Card title="Search land record">
