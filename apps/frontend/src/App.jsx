@@ -19,9 +19,11 @@ import { displayError, shortAddress, parcelMetadata } from "./utils/helpers.js";
 import { Field, SelectField, Card, Metric, Pill } from "./components/UIComponents.jsx";
 import LoginScreen from "./components/LoginScreen.jsx";
 import RtcCertificateModal from "./components/RtcCertificateModal.jsx";
+import EmailChangeModal from "./components/EmailChangeModal.jsx";
 
 export default function BhoomiApp() {
   const [session, setSession] = useState(null);
+  const [showEmailChangeModal, setShowEmailChangeModal] = useState(false);
   const [view, setView] = useState("overview");
   const [variant, setVariant] = useState("optimized");
   const [address, setAddress] = useState(ADDRESSES.optimized);
@@ -913,9 +915,9 @@ export default function BhoomiApp() {
 
         {view === "farmer" && (
           <section className="page-grid documents">
-            <Card title="Authenticated farmer identity">
+            <Card title="Authenticated farmer identity" action={<button type="button" className="small-button" onClick={() => setShowEmailChangeModal(true)}>📧 Change Email ID</button>}>
               <Pill tone="success">Email-code verified</Pill>
-              <p><strong>{session.user.fullName}</strong> | username: {session.user.username} | {session.user.email} | mobile ending {session.user.mobile.slice(-4)} | Aadhaar ending {session.user.aadhaarLast4}</p>
+              <p style={{ marginTop: "8px" }}><strong>{session.user.fullName}</strong> | username: {session.user.username} | {session.user.email} | mobile ending {session.user.mobile ? session.user.mobile.slice(-4) : "0000"} | Aadhaar ending {session.user.aadhaarLast4 || "0000"}</p>
               <p className="hint">Identity registration and email-code verification were completed before access to this portal. Aadhaar remains off-chain as a secure hash.</p>
             </Card>
             <Card title="Submit land-registration request">
@@ -1481,6 +1483,17 @@ export default function BhoomiApp() {
       </main>
 
       {certificateLand && <RtcCertificateModal land={certificateLand} contractAddress={address} onClose={() => setCertificateLand(null)} resolveName={resolveName} />}
+      {showEmailChangeModal && (
+        <EmailChangeModal
+          user={session?.user}
+          onClose={() => setShowEmailChangeModal(false)}
+          onSuccess={(updatedUser) => {
+            setSession((prev) => ({ ...prev, user: updatedUser }));
+            setShowEmailChangeModal(false);
+            setMessage(`Email address updated successfully to ${updatedUser.email}.`);
+          }}
+        />
+      )}
     </div>
   );
 }
