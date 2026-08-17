@@ -942,7 +942,7 @@ export default function BhoomiApp() {
                       const selectedDist = e.target.value;
                       const taluks = Object.keys(KARNATAKA_REVENUE_HIERARCHY[selectedDist] || {});
                       const firstTaluk = taluks[0] || "";
-                      const hoblis = Object.keys(KARNATAKA_REVENUE_HIERARCHY[selectedDist]?.[firstTaluk] || {});
+                      const hoblis = KARNATAKA_REVENUE_HIERARCHY[selectedDist]?.[firstTaluk] || [];
                       const firstHobli = hoblis[0] || "";
 
                       setForm((curr) => ({
@@ -963,7 +963,7 @@ export default function BhoomiApp() {
                     value={form.taluk}
                     onChange={(e) => {
                       const selectedTaluk = e.target.value;
-                      const hoblis = Object.keys(KARNATAKA_REVENUE_HIERARCHY[form.district]?.[selectedTaluk] || {});
+                      const hoblis = KARNATAKA_REVENUE_HIERARCHY[form.district]?.[selectedTaluk] || [];
                       const firstHobli = hoblis[0] || "";
 
                       setForm((curr) => ({
@@ -989,7 +989,7 @@ export default function BhoomiApp() {
                       }));
                     }}
                   >
-                    {Object.keys(KARNATAKA_REVENUE_HIERARCHY[form.district]?.[form.taluk] || {}).map((h) => (
+                    {(KARNATAKA_REVENUE_HIERARCHY[form.district]?.[form.taluk] || []).map((h) => (
                       <option key={h} value={h}>{h}</option>
                     ))}
                   </SelectField>
