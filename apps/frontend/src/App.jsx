@@ -1046,25 +1046,15 @@ export default function BhoomiApp() {
                 )}
                 <SelectField label="Select Registered Purchaser" value={form.buyer} onChange={update("buyer")}>
                   <option value="">-- Select Registered Purchaser --</option>
-                  {purchasers.filter((p) => p.walletAddress.toLowerCase() !== (selectedLand?.owner || wallet?.account || "").toLowerCase()).length === 0 ? (
-                    <option disabled value="">⚠️ No other registered users found (Register another account to select as purchaser)</option>
-                  ) : (
-                    purchasers.filter((p) => p.walletAddress.toLowerCase() !== (selectedLand?.owner || wallet?.account || "").toLowerCase()).map((p) => (
-                      <option key={p.id} value={p.walletAddress}>{p.fullName} ({p.username}) - {shortAddress(p.walletAddress)}</option>
-                    ))
-                  )}
+                  {purchasers.map((p) => (
+                    <option key={p.id} value={p.walletAddress}>{p.fullName} ({p.username}) - {shortAddress(p.walletAddress)}</option>
+                  ))}
                 </SelectField>
-
-                {purchasers.filter((p) => p.walletAddress.toLowerCase() !== (selectedLand?.owner || wallet?.account || "").toLowerCase()).length === 0 && (
-                  <p className="hint" style={{ color: "#b45309", marginTop: "4px", fontWeight: "500" }}>
-                    ℹ️ Note: <strong>{session.user.fullName}</strong> is the owner of this land and cannot be selected as purchaser. Please register another user account (e.g. a 2nd citizen/farmer) to select them as the purchaser.
-                  </p>
-                )}
               </div>
 
               {selectedLand ? (
-                <div className="record" style={{ margin: "0 0 16px 0", background: "#fffaf2", padding: "14px", borderRadius: "8px", border: "1px solid #e4d2ae" }}>
-                  <div className="record-head" style={{ marginBottom: "8px" }}><strong style={{ fontSize: "1.05rem", color: "#1e3a8a" }}>Selected Land Record #{selectedLand.id}</strong><Pill tone={selectedLand.status === 0 ? "success" : "warning"}>{statusText[selectedLand.status]}</Pill></div>
+                <div className="record" style={{ margin: "14px 0", background: "#fffaf2", padding: "14px", borderRadius: "8px", border: "1px solid #e4d2ae" }}>
+                  <div className="record-head" style={{ marginBottom: "8px" }}><strong style={{ fontSize: "1.05rem", color: "#1e3a8a" }}>Selected Land Record #{selectedLand.id}</strong><Pill tone={selectedLand.status === 0 ? "success" : "warning"}>{statusText[selectedLand.status] || "Registered"}</Pill></div>
                   <dl style={{ margin: 0 }}>
                     <dt>Current Khatedar / Owner</dt><dd><strong> Sri / Smt. {resolveName(selectedLand.owner)}</strong> ({shortAddress(selectedLand.owner)})</dd>
                     <dt>Nominated Purchaser</dt><dd>{selectedLand.pendingOwner && selectedLand.pendingOwner !== ethers.ZeroAddress ? `${resolveName(selectedLand.pendingOwner)} (${shortAddress(selectedLand.pendingOwner)})` : "None nominated"}</dd>
@@ -1072,15 +1062,35 @@ export default function BhoomiApp() {
                   </dl>
                 </div>
               ) : (
-                <div style={{ background: "#fff8eb", padding: "12px 14px", borderRadius: "8px", border: "1px solid #ead8b5", marginBottom: "16px" }}>
+                <div style={{ background: "#fff8eb", padding: "12px 14px", borderRadius: "8px", border: "1px solid #ead8b5", margin: "14px 0" }}>
                   <p className="empty" style={{ margin: 0, color: "#84725a" }}>Enter a registered land ID or select from your owned parcels to view ownership details.</p>
                 </div>
               )}
 
-              <div className="actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                {session.user.role !== "officer" && <button disabled={(selectedLand && selectedLand.status !== 0) || busyAction !== null} onClick={() => submit("request")}>{busyAction === "request" ? "Submitting..." : "Submit mutation request"}</button>}
-                {session.user.role === "officer" && <button disabled={isRegistrar !== true || (selectedLand && selectedLand.status !== 1) || busyAction !== null} onClick={() => submit("approve")}>{busyAction === "approve" ? "Verify mutation (Officer)" : "Verify mutation (Officer)"}</button>}
-                {session.user.role !== "officer" && <button disabled={(selectedLand && selectedLand.status !== 2) || !selectedLand?.pendingOwner || !wallet?.account || selectedLand.pendingOwner.toLowerCase() !== wallet.account.toLowerCase() || busyAction !== null} onClick={() => submit("transfer")}>{busyAction === "transfer" ? "Accepting..." : "Accept ownership (Purchaser)"}</button>}
+              <div className="actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
+                <button
+                  type="button"
+                  disabled={busyAction !== null || (selectedLand && selectedLand.status !== 0)}
+                  onClick={() => submit("request")}
+                >
+                  {busyAction === "request" ? "Submitting..." : "1. Submit Mutation Request (Owner)"}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={busyAction !== null || (selectedLand && selectedLand.status !== 1) || (session?.user?.role !== "officer" && session?.user?.role !== "admin")}
+                  onClick={() => submit("approve")}
+                >
+                  {busyAction === "approve" ? "Approving..." : "2. Verify & Approve Mutation (Revenue Officer)"}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={busyAction !== null || (selectedLand && selectedLand.status !== 2)}
+                  onClick={() => submit("transfer")}
+                >
+                  {busyAction === "transfer" ? "Accepting..." : "3. Accept Ownership (Purchaser)"}
+                </button>
               </div>
               <p className="hint" style={{ marginTop: "12px" }}>Select a land parcel and registered purchaser, then click <strong>Submit mutation request</strong>. Revenue Officers verify requests, and purchasers click <strong>Accept ownership</strong> to complete the transfer.</p>
             </Card>
