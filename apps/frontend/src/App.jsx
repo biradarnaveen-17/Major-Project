@@ -1107,7 +1107,8 @@ export default function BhoomiApp() {
                   disabled={
                     busyAction !== null ||
                     !selectedLand ||
-                    (selectedLand.status !== 0 && selectedLand.pendingOwner && selectedLand.pendingOwner !== ethers.ZeroAddress)
+                    (selectedLand.status !== 0 && selectedLand.pendingOwner && selectedLand.pendingOwner !== ethers.ZeroAddress) ||
+                    session?.user?.role === "officer" || session?.user?.role === "admin"
                   }
                   onClick={() => submit("request")}
                 >
@@ -1136,7 +1137,8 @@ export default function BhoomiApp() {
                     !selectedLand ||
                     selectedLand.status !== 2 ||
                     !selectedLand.pendingOwner ||
-                    selectedLand.pendingOwner === ethers.ZeroAddress
+                    selectedLand.pendingOwner === ethers.ZeroAddress ||
+                    session?.user?.role === "officer" || session?.user?.role === "admin"
                   }
                   onClick={() => submit("transfer")}
                 >
