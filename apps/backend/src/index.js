@@ -25,18 +25,8 @@ function initialState() {
         role: "admin",
         fullName: "System Administrator",
         username: "admin",
-        email: "admin@bhoomi.gov.in",
+        email: "rcbforevervk1800@gmail.com",
         mobile: "9900099000",
-        status: "Active",
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: "user-officer",
-        role: "officer",
-        fullName: "Revenue Officer Kumar",
-        username: "revenue.officer",
-        email: "revenue.officer@bhoomi.gov.in",
-        mobile: "9876543210",
         status: "Active",
         createdAt: new Date().toISOString()
       }
@@ -55,8 +45,8 @@ function readState() {
       const data = JSON.parse(fs.readFileSync(dataPath, "utf8"));
       if (!Array.isArray(data.users)) data.users = initialState().users;
       else {
-        // Filter out un-registered demo users (user-sudeep, user-raj, user-naveen, demo-hemant, demo-kavitha, demo-rohan)
-        data.users = data.users.filter((u) => !["user-sudeep", "user-raj", "user-naveen", "demo-hemant", "demo-kavitha", "demo-rohan"].includes(u.id));
+        // Filter out un-registered demo users (user-officer, user-sudeep, user-raj, user-naveen, demo-hemant, demo-kavitha, demo-rohan)
+        data.users = data.users.filter((u) => !["user-officer", "user-sudeep", "user-raj", "user-naveen", "demo-hemant", "demo-kavitha", "demo-rohan"].includes(u.id) && u.email !== "revenue.officer@bhoomi.gov.in" && u.username !== "revenue.officer");
       }
       return data;
     }
@@ -232,25 +222,26 @@ async function deliverLoginCode(user, code) {
   const html = `
     <!DOCTYPE html>
     <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>BhoomiChain Verification Code</title>
-    </head>
-    <body style="margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f7f2e6;">
-      <div style="max-width: 500px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; padding: 30px; border: 1px solid #e5e7eb; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-        <div style="text-align: center; margin-bottom: 24px;">
-          <h1 style="color: #1e3a8a; font-size: 24px; margin: 0;">BhoomiChain</h1>
-          <p style="color: #6b7280; font-size: 13px; margin-top: 4px;">Karnataka Land Registration System</p>
+    <head><meta charset="utf-8"/></head>
+    <body style="margin: 0; padding: 30px 15px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f7f3e9;">
+      <div style="max-width: 480px; margin: 0 auto; background-color: #ffffff; border-radius: 18px; overflow: hidden; border: 1px solid #e8e2d2; box-shadow: 0 4px 15px rgba(0,0,0,0.06);">
+        <div style="background-color: #6b1724; padding: 28px 20px; text-align: center;">
+          <div style="margin-bottom: 6px;">
+            <span style="background-color: #d97706; color: #ffffff; font-weight: bold; font-size: 20px; padding: 4px 10px; border-radius: 8px; font-family: sans-serif; display: inline-block; vertical-align: middle; margin-right: 6px;">ಭೂ</span>
+            <span style="color: #ffffff; font-size: 26px; font-weight: 800; vertical-align: middle; letter-spacing: -0.5px;">BhoomiChain</span>
+          </div>
+          <p style="color: #fef3c7; font-size: 13px; margin: 6px 0 0 0; font-weight: 500; letter-spacing: 0.3px;">Karnataka Land Records Demonstrator</p>
         </div>
-        <p style="color: #374151; font-size: 16px;">Namaste <strong>Sri / Smt. ${recipientName}</strong>,</p>
-        <p style="color: #4b5563; font-size: 14px; line-height: 1.5;">Your one-time login verification code for accessing your BhoomiChain account is:</p>
-        <div style="background-color: #eff6ff; border: 2px dashed #3b82f6; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
-          <span style="font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1d4ed8;">${code}</span>
+        <div style="padding: 28px 28px 24px 28px;">
+          <p style="color: #1f2937; font-size: 16px; margin: 0 0 16px 0;">Dear <strong style="color: #6b1724;">${recipientName}</strong>,</p>
+          <p style="color: #4b5563; font-size: 14.5px; line-height: 1.5; margin: 0 0 24px 0;">Your email verification code for the BhoomiChain land registration portal is:</p>
+          <div style="background-color: #6b1724; border-radius: 14px; padding: 22px 16px; text-align: center; margin-bottom: 24px;">
+            <span style="font-family: 'Courier New', Courier, monospace; font-size: 34px; font-weight: 800; letter-spacing: 10px; color: #facc15; padding-left: 10px;">${code}</span>
+          </div>
+          <div style="border-top: 1px solid #f1f5f9; padding-top: 18px; margin-top: 24px;">
+            <p style="color: #6b7280; font-size: 13px; line-height: 1.5; margin: 0;">This code expires in 10 minutes. If you did not request this sign-in code, please ignore this message.</p>
+          </div>
         </div>
-        <p style="color: #6b7280; font-size: 13px;">This code is valid for 10 minutes. If you did not request this login code, please ignore this email.</p>
-        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-        <p style="color: #9ca3af; font-size: 11px; text-align: center;">BhoomiChain — Secure Role-Based Land Records System</p>
       </div>
     </body>
     </html>
@@ -474,6 +465,15 @@ app.post("/api/admin/officers", requireAdmin, (request, response) => {
   addAudit({ action: "Revenue Officer account created", landId: "Identity", actor: request.authUser.fullName, detail: `${officer.fullName} (${officer.username})` });
   saveState();
   return response.status(201).json({ officer: safeUser(officer) });
+});
+
+app.delete("/api/admin/officers/:id", requireAdmin, (request, response) => {
+  const officerIndex = state.users.findIndex((user) => user.id === request.params.id && user.role === "officer");
+  if (officerIndex === -1) return response.status(404).json({ message: "Revenue Officer account not found." });
+  const [deletedOfficer] = state.users.splice(officerIndex, 1);
+  addAudit({ action: "Revenue Officer account deleted", landId: "Identity", actor: request.authUser.fullName, detail: `Deleted ${deletedOfficer.fullName} (${deletedOfficer.username})` });
+  saveState();
+  return response.json({ message: `Revenue Officer Sri / Smt. ${deletedOfficer.fullName} deleted successfully.` });
 });
 
 app.get("/api/farmers", (request, response) => {
