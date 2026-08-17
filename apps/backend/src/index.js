@@ -305,6 +305,18 @@ function getWalletForUser(u) {
   return new ethers.Wallet(pk).address;
 }
 
+app.post("/api/admin/reset-database", (_req, res) => {
+  state.users = initialState().users;
+  state.farmers = [];
+  state.landRequests = [];
+  state.documents = [];
+  state.audit = [];
+  state.sessions = [];
+  state.runs = [];
+  saveState();
+  return res.json({ message: "All previous land records, farmer requests, and non-admin users have been successfully deleted.", state });
+});
+
 app.get("/api/purchasers", (_request, response) => {
   const purchasers = state.users
     .filter((u) => u.role !== "admin" && u.role !== "officer" && (u.status === "Active" || !u.status))
