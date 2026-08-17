@@ -557,7 +557,7 @@ export default function BhoomiApp() {
             area: localReq.extent || "50",
             owner: localReq.walletAddress || wallet?.account || "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
             pendingOwner: ethers.ZeroAddress,
-            status: 1,
+            status: 0,
             history: [localReq.walletAddress || wallet?.account || "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"]
           };
           setLand(item);
@@ -1104,7 +1104,11 @@ export default function BhoomiApp() {
               <div className="actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
                 <button
                   type="button"
-                  disabled={busyAction !== null || (selectedLand && selectedLand.status !== 0)}
+                  disabled={
+                    busyAction !== null ||
+                    !selectedLand ||
+                    (selectedLand.status !== 0 && selectedLand.pendingOwner && selectedLand.pendingOwner !== ethers.ZeroAddress)
+                  }
                   onClick={() => submit("request")}
                 >
                   {busyAction === "request" ? "Submitting..." : "1. Submit Mutation Request (Owner)"}
@@ -1112,7 +1116,14 @@ export default function BhoomiApp() {
 
                 <button
                   type="button"
-                  disabled={busyAction !== null || (selectedLand && selectedLand.status !== 1) || (session?.user?.role !== "officer" && session?.user?.role !== "admin")}
+                  disabled={
+                    busyAction !== null ||
+                    !selectedLand ||
+                    selectedLand.status !== 1 ||
+                    !selectedLand.pendingOwner ||
+                    selectedLand.pendingOwner === ethers.ZeroAddress ||
+                    (session?.user?.role !== "officer" && session?.user?.role !== "admin")
+                  }
                   onClick={() => submit("approve")}
                 >
                   {busyAction === "approve" ? "Approving..." : "2. Verify & Approve Mutation (Revenue Officer)"}
@@ -1120,7 +1131,13 @@ export default function BhoomiApp() {
 
                 <button
                   type="button"
-                  disabled={busyAction !== null || (selectedLand && selectedLand.status !== 2)}
+                  disabled={
+                    busyAction !== null ||
+                    !selectedLand ||
+                    selectedLand.status !== 2 ||
+                    !selectedLand.pendingOwner ||
+                    selectedLand.pendingOwner === ethers.ZeroAddress
+                  }
                   onClick={() => submit("transfer")}
                 >
                   {busyAction === "transfer" ? "Accepting..." : "3. Accept Ownership (Purchaser)"}
