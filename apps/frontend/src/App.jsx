@@ -702,26 +702,24 @@ export default function BhoomiApp() {
 
         const metadataHash = ethers.keccak256(ethers.toUtf8Bytes(parcelMetadata(form.survey, form.district, form.taluk, form.hobli, form.village)));
         
+        const activeProvider = wallet?.provider || defaultProvider;
+        const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
+        const authorityRegistry = new ethers.Contract(address, variant === "base" ? BASE_ABI : OPTIMIZED_ABI, authoritySigner);
+
         try {
-          tx = variant === "base"
-            ? await registry["registerLand(uint256,address,string,string,uint256)"](numericLandId, validOwner, form.survey, revenueLocation, form.area)
-            : await registry["registerLand(uint256,address,bytes32,uint96)"](numericLandId, validOwner, metadataHash, form.area);
-        } catch (contractErr) {
-          const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet.provider);
-          const authorityRegistry = contract(true, authoritySigner);
-          try {
-            const isReg = await authorityRegistry.registrars(await signer.getAddress());
-            if (!isReg) {
-              const setRegTx = await authorityRegistry.setRegistrar(await signer.getAddress(), true);
-              await setRegTx.wait();
-            }
-          } catch (regErr) {
-            console.warn("Auto-setRegistrar retry skipped:", regErr.message);
+          const isReg = await authorityRegistry.registrars(authoritySigner.address).catch(() => true);
+          if (!isReg) {
+            const setRegTx = await authorityRegistry.setRegistrar(authoritySigner.address, true);
+            await setRegTx.wait();
           }
-          
-          tx = variant === "base"
-            ? await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](numericLandId, validOwner, form.survey, revenueLocation, form.area)
-            : await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](numericLandId, validOwner, metadataHash, form.area);
+        } catch (regErr) {
+          console.warn("Auto-setRegistrar skipped:", regErr.message);
+        }
+
+        if (variant === "base") {
+          tx = await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](numericLandId, validOwner, form.survey, revenueLocation, form.area);
+        } else {
+          tx = await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](numericLandId, validOwner, metadataHash, form.area);
         }
       }
       if (action === "request") {
@@ -736,7 +734,7 @@ export default function BhoomiApp() {
         try {
           await registry.getLandDetails.staticCall(numericLandId);
         } catch {
-          const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet.provider);
+          const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet.provider || defaultProvider);
           const authorityRegistry = contract(true, authoritySigner);
           const ownerAddr = targetLand?.owner || wallet?.account || DEMO_ACCOUNTS.farmer;
           const surveyNum = targetLand?.survey || form.survey || `SUR-${numericLandId}`;
@@ -800,7 +798,17 @@ export default function BhoomiApp() {
         } catch (requestError) { setMessage(`Blockchain registration succeeded, but the local request status needs refresh: ${requestError.message}`); }
       }
       await appendAudit(`${action[0].toUpperCase()}${action.slice(1)} transaction confirmed`, form.landId, `${receipt.gasUsed.toString()} gas | ${tx.hash}`);
-      setMessage(`${action} completed in block ${receipt.blockNumber}; gas used: ${receipt.gasUsed.toString()}.`); await findLand(form.landId); setView("transfer");
+      
+      if (action === "register") {
+        setMessage(`✅ Land ID #${form.landId} registered on blockchain in block ${receipt.blockNumber}! Gas used: ${receipt.gasUsed.toString()}.`);
+        await findLand(form.landId);
+        setView(session?.user?.role === "officer" ? "agent" : "farmer");
+        await loadPortalData();
+      } else {
+        setMessage(`${action} completed in block ${receipt.blockNumber}; gas used: ${receipt.gasUsed.toString()}.`);
+        await findLand(form.landId);
+        setView("transfer");
+      }
     } catch (error) {
       const friendlyError = displayError(error, registry);
       if (action === "register" && friendlyError === errorText.DuplicateRegistration) {
