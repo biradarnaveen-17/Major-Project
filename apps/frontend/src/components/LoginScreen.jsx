@@ -138,7 +138,6 @@ export default function LoginScreen({ onAuthenticated, onLogin }) {
       <section className="login-card">
         <div className="auth-tabs">
           <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setLoginForm((c) => ({ ...c, identifier: "" })); refreshCaptcha(); }}>Citizen Sign in</button>
-          <button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setRegisterForm({ role: "citizen", fullName: "", username: "", gender: "", dateOfBirth: "", aadhaarNumber: "", mobile: "", email: "" }); setPendingRegOtp(false); }}>Register New Account</button>
           <button type="button" className={mode === "officer" ? "active" : ""} onClick={() => { setMode("officer"); setLoginForm((c) => ({ ...c, identifier: "" })); refreshCaptcha(); }}>Revenue Officer Sign in</button>
         </div>
 
