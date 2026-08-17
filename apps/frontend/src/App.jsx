@@ -289,6 +289,30 @@ export default function BhoomiApp() {
     });
   }, [purchasers, wallet, session]);
 
+  const filteredPurchasers = useMemo(() => {
+    return availablePurchasers.filter((p) => {
+      if (!purchaserQuery.trim()) return true;
+      const q = purchaserQuery.trim().toLowerCase();
+      return (
+        p.fullName?.toLowerCase().includes(q) ||
+        p.username?.toLowerCase().includes(q) ||
+        p.role?.toLowerCase().includes(q) ||
+        p.walletAddress?.toLowerCase().includes(q)
+      );
+    });
+  }, [availablePurchasers, purchaserQuery]);
+
+  useEffect(() => {
+    if (purchaserQuery.trim() && filteredPurchasers.length > 0) {
+      setForm((curr) => {
+        if (!filteredPurchasers.some((p) => p.walletAddress === curr.buyer)) {
+          return { ...curr, buyer: filteredPurchasers[0].walletAddress };
+        }
+        return curr;
+      });
+    }
+  }, [purchaserQuery, filteredPurchasers]);
+
   const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
   const updateDocument = (key) => (event) => setDocumentForm((current) => ({ ...current, [key]: event.target.value }));
   const updateOfficer = (key) => (event) => setOfficerForm((current) => ({ ...current, [key]: event.target.value }));
@@ -1264,25 +1288,59 @@ export default function BhoomiApp() {
                   </SelectField>
                 )}
                 {session?.user?.role !== "officer" && session?.user?.role !== "admin" && (!selectedLand || selectedLand.status === 0) && (
-                  <div style={{ display: "grid", gap: "8px", gridColumn: "1 / -1", background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0", margin: "6px 0" }}>
+                  <div style={{ display: "grid", gap: "10px", gridColumn: "1 / -1", background: "#f8fafc", padding: "14px", borderRadius: "10px", border: "1px solid #cbd5e1", margin: "6px 0" }}>
                     <Field
-                      label="🔍 Search Registered Purchaser"
+                      label="🔍 Instant Purchaser Search (Type Name or Username)"
                       placeholder="Type name or username (e.g. sudeep, raj)..."
                       value={purchaserQuery}
                       onChange={(e) => setPurchaserQuery(e.target.value)}
                     />
-                    <SelectField label="Nominate Purchaser for Transfer" value={form.buyer} onChange={update("buyer")}>
-                      <option value="">-- Select Registered Purchaser --</option>
-                      {availablePurchasers
-                        .filter((p) => {
-                          if (!purchaserQuery.trim()) return true;
-                          const q = purchaserQuery.toLowerCase();
-                          return p.fullName?.toLowerCase().includes(q) || p.username?.toLowerCase().includes(q) || p.walletAddress?.toLowerCase().includes(q);
-                        })
-                        .map((p) => (
+
+                    <div style={{ display: "grid", gap: "6px" }}>
+                      <label style={{ fontSize: "0.85rem", fontWeight: "600", color: "#334155" }}>
+                        Matching Registered Purchasers ({filteredPurchasers.length}):
+                      </label>
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", margin: "4px 0" }}>
+                        {filteredPurchasers.map((p) => {
+                          const isSelected = form.buyer === p.walletAddress;
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              style={{
+                                padding: "8px 14px",
+                                borderRadius: "6px",
+                                border: isSelected ? "2px solid #1e3a8a" : "1px solid #94a3b8",
+                                backgroundColor: isSelected ? "#1e3a8a" : "#ffffff",
+                                color: isSelected ? "#ffffff" : "#0f172a",
+                                fontWeight: isSelected ? "bold" : "600",
+                                fontSize: "0.9rem",
+                                cursor: "pointer",
+                                boxShadow: isSelected ? "0 2px 4px rgba(30,58,138,0.25)" : "none"
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setForm((curr) => ({ ...curr, buyer: p.walletAddress }));
+                              }}
+                            >
+                              {isSelected ? "✓ " : ""}{p.fullName} (@{p.username})
+                            </button>
+                          );
+                        })}
+                        {filteredPurchasers.length === 0 && (
+                          <span style={{ fontSize: "0.85rem", color: "#dc2626", fontWeight: "500" }}>
+                            No registered user matches "{purchaserQuery}". Available purchasers: {availablePurchasers.map((p) => p.fullName || p.username).join(", ") || "None"}
+                          </span>
+                        )}
+                      </div>
+
+                      <SelectField label="Selected Purchaser Wallet for Mutation" value={form.buyer} onChange={update("buyer")}>
+                        <option value="">-- Select Registered Purchaser --</option>
+                        {availablePurchasers.map((p) => (
                           <option key={p.id} value={p.walletAddress}>{p.fullName} ({p.username}) - {shortAddress(p.walletAddress)}</option>
                         ))}
-                    </SelectField>
+                      </SelectField>
+                    </div>
                   </div>
                 )}
               </div>
