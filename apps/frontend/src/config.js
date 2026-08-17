@@ -4,13 +4,13 @@ export const RPC_URL = `http://${currentHost}:8545`;
 export const ADDRESSES = { base: "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE", optimized: "0x68B1D87F95878fE05B998F19b66F4baba5De1aed" };
 export const DEMO_ACCOUNTS = { authority: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", buyer: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", farmer: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC" };
 export const DEFAULT_DEMO_LAND_ID = String(Date.now());
-export const NAV = [["overview", "Dashboard"], ["farmer", "My land & registration"], ["agent", "Revenue officer desk"], ["registry", "Land registration"], ["transfer", "Mutation & transfer"], ["documents", "RTC & documents"], ["accounts", "Officer accounts"], ["analytics", "Gas analysis"], ["loadtest", "Workload benchmark (10, 100, 500)"], ["audit", "Audit register"]];
+export const NAV = [["overview", "Dashboard"], ["farmer", "My land & registration"], ["agent", "Revenue officer desk"], ["registry", "Land registration"], ["transfer", "Mutation & transfer"], ["documents", "RTC & documents"], ["accounts", "Officer accounts"], ["gaslog", "Live EVM Gas Audit"], ["analytics", "Gas analysis"], ["loadtest", "Workload benchmark (10, 100, 500)"], ["audit", "Audit register"]];
 export const PORTALS = {
   citizen: { label: "Citizen portal", account: "farmer", defaultView: "farmer", views: ["overview", "farmer", "transfer", "documents"] },
   farmer: { label: "Citizen portal", account: "farmer", defaultView: "farmer", views: ["overview", "farmer", "transfer", "documents"] },
   purchaser: { label: "Citizen portal", account: "buyer", defaultView: "farmer", views: ["overview", "farmer", "transfer", "documents"] },
-  officer: { label: "Revenue Officer portal", account: "authority", defaultView: "agent", views: ["overview", "agent", "registry", "transfer", "documents"] },
-  admin: { label: "System Administrator", account: "authority", defaultView: "analytics", views: ["overview", "accounts", "analytics", "loadtest", "audit"] }
+  officer: { label: "Revenue Officer portal", account: "authority", defaultView: "agent", views: ["overview", "agent", "registry", "transfer", "documents", "gaslog"] },
+  admin: { label: "System Administrator", account: "authority", defaultView: "gaslog", views: ["overview", "gaslog", "accounts", "analytics", "loadtest", "audit"] }
 };
 export const COMMON_ABI = ["function registerLand(uint256,address,string,string,uint256)", "function registerLand(uint256,address,bytes32,uint96)", "function requestTransfer(uint256,address)", "function approveTransfer(uint256)", "function transferOwnership(uint256)", "function registrars(address) view returns (bool)"];
 export const BASE_ABI = [...COMMON_ABI, "function getLandDetails(uint256) returns (uint256,string,string,uint256,address,address,uint8,address[])"];
