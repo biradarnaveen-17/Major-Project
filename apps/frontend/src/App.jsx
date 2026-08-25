@@ -843,8 +843,22 @@ export default function BhoomiApp() {
           }
         }
 
-        const onChainOwner = details ? String(details.owner || details[4] || details[0] || "") : "";
+        const onChainOwner = details ? String(details.currentOwner || details.owner || (variant === "base" ? details[4] : details[0]) || "") : "";
         const requestSigner = resolveSignerForAddress(onChainOwner || targetLand?.owner);
+
+        try {
+          const activeProvider = wallet?.provider || defaultProvider;
+          const reqAddr = await requestSigner.getAddress();
+          const reqBal = await activeProvider.getBalance(reqAddr);
+          if (reqBal < ethers.parseEther("0.1")) {
+            const faucet = new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
+            const fTx = await faucet.sendTransaction({ to: reqAddr, value: ethers.parseEther("1.0") });
+            await fTx.wait();
+          }
+        } catch (fErr) {
+          console.warn("Request signer gas funding skipped:", fErr.message);
+        }
+
         const requestRegistry = contract(true, requestSigner);
         tx = await requestRegistry.requestTransfer(numericLandId, targetBuyer);
       }
@@ -872,6 +886,20 @@ export default function BhoomiApp() {
         }
 
         const transferSigner = resolveSignerForAddress(pendingOwnerAddr || targetLand?.pendingOwner);
+
+        try {
+          const activeProvider = wallet?.provider || defaultProvider;
+          const trAddr = await transferSigner.getAddress();
+          const trBal = await activeProvider.getBalance(trAddr);
+          if (trBal < ethers.parseEther("0.1")) {
+            const faucet = new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
+            const fTx = await faucet.sendTransaction({ to: trAddr, value: ethers.parseEther("1.0") });
+            await fTx.wait();
+          }
+        } catch (fErr) {
+          console.warn("Transfer signer gas funding skipped:", fErr.message);
+        }
+
         const transferRegistry = contract(true, transferSigner);
         tx = await transferRegistry.transferOwnership(numericLandId);
       }
