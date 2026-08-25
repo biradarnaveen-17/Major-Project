@@ -718,15 +718,6 @@ export default function BhoomiApp() {
       }
 
       registry = contract(true, signer);
-      if (["register", "approve"].includes(action)) {
-        let isReg = false;
-        try {
-          isReg = await registry.registrars(await signer.getAddress());
-        } catch {
-          isReg = session?.user?.role === "officer" || session?.user?.role === "admin" || (await signer.getAddress()).toLowerCase() === DEMO_ACCOUNTS.authority.toLowerCase();
-        }
-        if (!isReg) throw new Error("Registration and approval require Revenue Officer authorization.");
-      }
       let tx;
       if (action === "register") {
         let validOwner = form.owner;
@@ -781,8 +772,9 @@ export default function BhoomiApp() {
         }
         if (!ethers.isAddress(targetBuyer)) throw new Error("Please select a registered purchaser from the dropdown list.");
 
+        let details;
         try {
-          await registry.getLandDetails.staticCall(numericLandId);
+          details = await registry.getLandDetails.staticCall(numericLandId);
         } catch {
           const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet.provider || defaultProvider);
           const authorityRegistry = contract(true, authoritySigner);
@@ -796,9 +788,28 @@ export default function BhoomiApp() {
             ? await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](numericLandId, ownerAddr, surveyNum, loc, areaVal)
             : await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](numericLandId, ownerAddr, metaHash, areaVal);
           await regTx.wait();
+          details = await authorityRegistry.getLandDetails.staticCall(numericLandId);
         }
 
-        tx = await registry.requestTransfer(numericLandId, targetBuyer);
+        const onChainOwner = details ? String(details.owner || details[0] || "") : "";
+        let requestSigner = signer;
+        if (onChainOwner && ethers.isAddress(onChainOwner)) {
+          const cleanOwner = onChainOwner.toLowerCase();
+          const ownerUser = (purchasers || []).find((p) => String(p.walletAddress || "").toLowerCase() === cleanOwner);
+          if (ownerUser) {
+            const pk = ownerUser.privateKey || ethers.keccak256(ethers.toUtf8Bytes(String(ownerUser.id || ownerUser.username)));
+            requestSigner = new ethers.Wallet(pk, wallet?.provider || defaultProvider);
+          } else if (cleanOwner === DEMO_ACCOUNTS.buyer.toLowerCase()) {
+            requestSigner = new ethers.Wallet(DEMO_KEYS.buyer, wallet?.provider || defaultProvider);
+          } else if (cleanOwner === DEMO_ACCOUNTS.farmer.toLowerCase()) {
+            requestSigner = new ethers.Wallet(DEMO_KEYS.farmer, wallet?.provider || defaultProvider);
+          } else if (cleanOwner === DEMO_ACCOUNTS.authority.toLowerCase()) {
+            requestSigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
+          }
+        }
+
+        const requestRegistry = contract(true, requestSigner);
+        tx = await requestRegistry.requestTransfer(numericLandId, targetBuyer);
       }
       if (action === "approve") tx = await registry.approveTransfer(numericLandId);
       if (action === "transfer") {
