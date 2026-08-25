@@ -1433,7 +1433,7 @@ export default function BhoomiApp() {
                     ))}
                   </SelectField>
                 )}
-                {session?.user?.role !== "officer" && session?.user?.role !== "admin" && (!selectedLand || selectedLand.status === 0) && (
+                {(!selectedLand || selectedLand.status === 0) && (
                   <div style={{ display: "grid", gap: "10px", gridColumn: "1 / -1", background: "#f8fafc", padding: "14px", borderRadius: "10px", border: "1px solid #cbd5e1", margin: "6px 0" }}>
                     <Field
                       label="🔍 Instant Purchaser Search (Type Name or Username)"
@@ -1509,48 +1509,36 @@ export default function BhoomiApp() {
               )}
 
               <div className="actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
-                {(session?.user?.role === "officer" || session?.user?.role === "admin") ? (
+                {(!selectedLand || selectedLand.status === 0) && (
                   <button
                     type="button"
-                    disabled={
-                      busyAction !== null ||
-                      !selectedLand ||
-                      selectedLand.status !== 1 ||
-                      !selectedLand.pendingOwner ||
-                      selectedLand.pendingOwner === ethers.ZeroAddress
-                    }
+                    disabled={busyAction !== null || !form.landId}
+                    onClick={() => submit("request")}
+                    style={{ background: "#991b1b", color: "#fff", padding: "12px 20px", fontWeight: "bold" }}
+                  >
+                    {busyAction === "request" ? "Submitting request..." : "1. Submit Mutation Request (Owner)"}
+                  </button>
+                )}
+
+                {selectedLand?.status === 1 && (
+                  <button
+                    type="button"
+                    disabled={busyAction !== null || !selectedLand}
                     onClick={() => submit("approve")}
                     style={{ background: "#701a75", color: "#fff", padding: "12px 20px", fontWeight: "bold" }}
                   >
-                    {busyAction === "approve" ? "Approving..." : "Verify & Approve Mutation (Revenue Officer)"}
+                    {busyAction === "approve" ? "Approving..." : "2. Verify & Approve Mutation (Revenue Officer)"}
                   </button>
-                ) : selectedLand?.status === 2 ? (
+                )}
+
+                {selectedLand?.status === 2 && (
                   <button
                     type="button"
-                    disabled={
-                      busyAction !== null ||
-                      !selectedLand ||
-                      selectedLand.status !== 2 ||
-                      !selectedLand.pendingOwner ||
-                      selectedLand.pendingOwner === ethers.ZeroAddress
-                    }
+                    disabled={busyAction !== null || !selectedLand}
                     onClick={() => submit("transfer")}
                     style={{ background: "#15803d", color: "#fff", padding: "12px 20px", fontWeight: "bold" }}
                   >
-                    {busyAction === "transfer" ? "Accepting..." : "Accept Ownership & Complete Transfer (Purchaser)"}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={
-                      busyAction !== null ||
-                      !form.landId ||
-                      (selectedLand && selectedLand.owner && wallet?.account && selectedLand.owner.toLowerCase() !== wallet.account.toLowerCase()) ||
-                      (selectedLand && selectedLand.status !== 0 && selectedLand.pendingOwner && selectedLand.pendingOwner !== ethers.ZeroAddress)
-                    }
-                    onClick={() => submit("request")}
-                  >
-                    {busyAction === "request" ? "Submitting..." : "1. Submit Mutation Request (Owner)"}
+                    {busyAction === "transfer" ? "Completing..." : "3. Complete Mutation & Finalize Ownership"}
                   </button>
                 )}
               </div>
