@@ -1449,7 +1449,7 @@ export default function BhoomiApp() {
                     ))}
                   </SelectField>
                 )}
-                {(!selectedLand || selectedLand.status === 0) && (
+                {(!selectedLand || selectedLand.status === 0) && (session?.user?.role !== "officer" && session?.user?.role !== "admin") && (
                   <div style={{ display: "grid", gap: "10px", gridColumn: "1 / -1", background: "#f8fafc", padding: "14px", borderRadius: "10px", border: "1px solid #cbd5e1", margin: "6px 0" }}>
                     <Field
                       label="🔍 Instant Purchaser Search (Type Name or Username)"
@@ -1507,6 +1507,15 @@ export default function BhoomiApp() {
                     </SelectField>
                   </div>
                 )}
+
+                {(!selectedLand || selectedLand.status === 0) && (session?.user?.role === "officer" || session?.user?.role === "admin") && (
+                  <div style={{ gridColumn: "1 / -1", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "14px", borderRadius: "8px", color: "#1e40af" }}>
+                    <strong>ℹ️ Revenue Officer Notice: Awaiting Owner Nomination</strong>
+                    <p style={{ margin: "4px 0 0 0", fontSize: "0.9rem" }}>
+                      The recorded Khatedar / Owner ({selectedLand ? `Sri / Smt. ${resolveName(selectedLand.owner)}` : "Land Owner"}) must sign in to nominate a purchaser and submit the mutation request. As a Revenue Officer, your role is to verify and approve mutation requests once submitted by land owners.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {selectedLand ? (
@@ -1525,7 +1534,7 @@ export default function BhoomiApp() {
               )}
 
               <div className="actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
-                {(!selectedLand || selectedLand.status === 0) && (
+                {(!selectedLand || selectedLand.status === 0) && session?.user?.role !== "officer" && session?.user?.role !== "admin" && (
                   <button
                     type="button"
                     disabled={busyAction !== null || !form.landId}
@@ -1536,7 +1545,7 @@ export default function BhoomiApp() {
                   </button>
                 )}
 
-                {selectedLand?.status === 1 && (
+                {selectedLand?.status === 1 && (session?.user?.role === "officer" || session?.user?.role === "admin") && (
                   <button
                     type="button"
                     disabled={busyAction !== null || !selectedLand}
@@ -1547,15 +1556,27 @@ export default function BhoomiApp() {
                   </button>
                 )}
 
-                {selectedLand?.status === 2 && (
+                {selectedLand?.status === 1 && session?.user?.role !== "officer" && session?.user?.role !== "admin" && (
+                  <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", padding: "10px 14px", borderRadius: "6px", color: "#92400e", fontWeight: "500" }}>
+                    ⏳ Revenue Verification Pending: The mutation request has been submitted to the Revenue Officer desk for verification.
+                  </div>
+                )}
+
+                {selectedLand?.status === 2 && session?.user?.role !== "officer" && session?.user?.role !== "admin" && (
                   <button
                     type="button"
                     disabled={busyAction !== null || !selectedLand}
                     onClick={() => submit("transfer")}
                     style={{ background: "#15803d", color: "#fff", padding: "12px 20px", fontWeight: "bold" }}
                   >
-                    {busyAction === "transfer" ? "Completing..." : "3. Complete Mutation & Finalize Ownership"}
+                    {busyAction === "transfer" ? "Completing..." : "3. Complete Mutation & Finalize Ownership (Purchaser)"}
                   </button>
+                )}
+
+                {selectedLand?.status === 2 && (session?.user?.role === "officer" || session?.user?.role === "admin") && (
+                  <div style={{ background: "#dcfce7", border: "1px solid #22c55e", padding: "10px 14px", borderRadius: "6px", color: "#166534", fontWeight: "500" }}>
+                    ⏳ Awaiting Purchaser Acceptance: Verified & approved by Revenue Officer. Awaiting final acceptance from nominated purchaser ({resolveName(selectedLand.pendingOwner)}).
+                  </div>
                 )}
               </div>
               <p className="hint" style={{ marginTop: "12px" }}>Select a land parcel and registered purchaser, then click <strong>Submit mutation request</strong>. Revenue Officers verify requests, and purchasers click <strong>Accept ownership</strong> to complete the transfer.</p>
