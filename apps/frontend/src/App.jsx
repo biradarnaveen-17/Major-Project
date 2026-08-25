@@ -285,12 +285,15 @@ export default function BhoomiApp() {
   }, [myLandRequests, landRequests, land, wallet, farmer]);
 
   const availablePurchasers = useMemo(() => {
+    const currentOwnerAddr = (selectedLand?.owner || land?.owner || "").toLowerCase();
     return (purchasers || []).filter((p) => {
-      const isMeWallet = wallet?.account && String(p.walletAddress || "").toLowerCase() === String(wallet.account).toLowerCase();
+      const pAddr = String(p.walletAddress || "").toLowerCase();
+      const isMeWallet = wallet?.account && pAddr === String(wallet.account).toLowerCase();
       const isMeUser = session?.user?.username && String(p.username || "").toLowerCase() === String(session.user.username).toLowerCase();
-      return !isMeWallet && !isMeUser;
+      const isCurrentOwner = currentOwnerAddr && pAddr === currentOwnerAddr;
+      return !isMeWallet && !isMeUser && !isCurrentOwner;
     });
-  }, [purchasers, wallet, session]);
+  }, [purchasers, wallet, session, selectedLand, land]);
 
   const filteredPurchasers = useMemo(() => {
     if (!purchaserQuery.trim()) return [];
@@ -808,8 +811,11 @@ export default function BhoomiApp() {
       if (action === "request") {
         let targetBuyer = form.buyer;
         const currentOwnerAddr = (targetLand?.owner || land?.owner || wallet?.account || "").toLowerCase();
+        if (targetBuyer && targetBuyer.toLowerCase() === currentOwnerAddr) {
+          throw new Error(`Cannot transfer land to the current owner (${resolveName(currentOwnerAddr)}). Please select a different registered purchaser.`);
+        }
         if (!ethers.isAddress(targetBuyer) || targetBuyer.toLowerCase() === currentOwnerAddr) {
-          const fallback = purchasers.find((p) => p.walletAddress.toLowerCase() !== currentOwnerAddr) || purchasers[0];
+          const fallback = availablePurchasers[0] || purchasers.find((p) => p.walletAddress.toLowerCase() !== currentOwnerAddr);
           if (fallback) targetBuyer = fallback.walletAddress;
         }
         if (!ethers.isAddress(targetBuyer)) throw new Error("Please select a registered purchaser from the dropdown list.");
