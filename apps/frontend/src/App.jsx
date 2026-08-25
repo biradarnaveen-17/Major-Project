@@ -968,8 +968,8 @@ export default function BhoomiApp() {
       });
       if (action === "transfer") {
         try {
-          const newOwnerWallet = await signer.getAddress();
-          const newOwnerName = session?.user?.fullName || resolveName(newOwnerWallet);
+          const newOwnerWallet = await transferSigner.getAddress();
+          const newOwnerName = resolveName(newOwnerWallet) || session?.user?.fullName || "New Owner";
           await api(`/api/land-requests/transfer-owner/${form.landId}`, {
             method: "PATCH",
             headers: { "content-type": "application/json" },
@@ -999,6 +999,11 @@ export default function BhoomiApp() {
         await findLand(form.landId);
         setView(session?.user?.role === "officer" ? "agent" : "farmer");
         await loadPortalData();
+      } else if (action === "transfer") {
+        const transferOwnerName = resolveName(await transferSigner.getAddress()) || session?.user?.fullName || "New Owner";
+        setMessage(`Mutation transfer completed successfully! Ownership of Land #${form.landId} is now finalized on-chain under Sri / Smt. ${transferOwnerName} in block ${receipt.blockNumber}. Gas used: ${receipt.gasUsed.toString()}.`);
+        await findLand(form.landId);
+        setView("transfer");
       } else {
         setMessage(`${action} completed in block ${receipt.blockNumber}; gas used: ${receipt.gasUsed.toString()}.`);
         await findLand(form.landId);
