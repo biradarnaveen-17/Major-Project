@@ -395,6 +395,21 @@ export default function BhoomiApp() {
     }
   }
 
+  async function resetSystemDatabase() {
+    if (!window.confirm("Are you sure you want to purge ALL test land records, requests, and non-admin user accounts? This will reset the database to clean initial state.")) return;
+    try {
+      const res = await api("/api/admin/reset-database", { method: "POST" });
+      setMessage(res.message || "Database reset successfully.");
+      localStorage.removeItem("bhoomi_transferred_lands");
+      localStorage.removeItem("bhoomi_active_land_id");
+      loadAllUsers();
+      loadOfficers();
+      loadPortalData();
+    } catch (err) {
+      setMessage(err.message);
+    }
+  }
+
   async function loadOfficers(token = session?.token) {
     if (!token) return;
     try { setOfficers(await api("/api/admin/officers", { headers: { authorization: `Bearer ${token}` } })); } catch (error) { setMessage(error.message); }
@@ -1693,9 +1708,10 @@ export default function BhoomiApp() {
             <Card
               title="System User Control & Account Management"
               action={
-                <div style={{ display: "flex", gap: "8px" }}>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                   <Pill tone="purple">{allUsers.length} total registered accounts</Pill>
                   <button className="text-button" onClick={loadAllUsers}>Refresh users</button>
+                  <button className="small-button" style={{ background: "#dc2626", color: "#ffffff", border: "none", padding: "6px 12px", cursor: "pointer" }} onClick={resetSystemDatabase}>Reset Database</button>
                 </div>
               }
             >
