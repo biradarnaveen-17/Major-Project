@@ -168,7 +168,7 @@ export default function LoginScreen({ onAuthenticated, onLogin }) {
                 <Field label="Email address" required type="email" value={registerForm.email} onChange={updateRegistration("email")} placeholder="e.g. farmer@domain.com" />
               </div>
               <p className="hint">We verify your email address via OTP before saving your account to ensure you can always sign in safely.</p>
-              <button className="login-button" type="submit">📩 Send Email Verification Code</button>
+              <button className="login-button" type="submit">Send Email Verification Code</button>
               <button type="button" className="text-button" style={{ width: "100%", marginTop: "10px" }} onClick={() => setMode("login")}>Already have an account? Sign in</button>
             </form>
           ) : (
@@ -180,7 +180,7 @@ export default function LoginScreen({ onAuthenticated, onLogin }) {
 
 
               <Field label="6-digit verification code" required inputMode="numeric" maxLength="6" value={regCode} onChange={(event) => setRegCode(event.target.value.replace(/\D/g, ""))} placeholder="e.g. 123456" />
-              <button className="login-button" type="submit">✅ Verify Code & Create Account</button>
+              <button className="login-button" type="submit">Verify Code & Create Account</button>
               <button type="button" className="text-button" style={{ width: "100%", marginTop: "10px" }} onClick={() => setPendingRegOtp(false)}>← Edit Registration Details / Fix Email Typo</button>
             </form>
           )

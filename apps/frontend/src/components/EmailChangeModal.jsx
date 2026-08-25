@@ -166,8 +166,7 @@ export default function EmailChangeModal({ user, token, onClose, onEmailUpdated 
               padding: "4px"
             }}
           >
-            ✕
-          </button>
+            X</button>
         </div>
 
         {/* Modal Body */}
@@ -234,7 +233,7 @@ export default function EmailChangeModal({ user, token, onClose, onEmailUpdated 
                   cursor: loading ? "not-allowed" : "pointer"
                 }}
               >
-                {loading ? "Sending security code..." : "📩 Send Code to Current Email"}
+                {loading ? "Sending security code..." : "Send Code to Current Email"}
               </button>
             </div>
           )}
@@ -304,7 +303,7 @@ export default function EmailChangeModal({ user, token, onClose, onEmailUpdated 
                     opacity: loading || oldCode.trim().length < 6 ? 0.7 : 1
                   }}
                 >
-                  {loading ? "Verifying..." : "Verify Current Email Code ➔"}
+                  {loading ? "Verifying..." : "Verify Current Email Code ->"}
                 </button>
               </div>
             </form>
@@ -325,7 +324,7 @@ export default function EmailChangeModal({ user, token, onClose, onEmailUpdated 
                   fontWeight: "500"
                 }}
               >
-                ✅ Current email ownership verified. Now enter your new email address.
+                Current email ownership verified. Now enter your new email address.
               </div>
 
               <div style={{ marginBottom: "20px" }}>
@@ -365,7 +364,7 @@ export default function EmailChangeModal({ user, token, onClose, onEmailUpdated 
                   opacity: loading || !newEmail.includes("@") ? 0.7 : 1
                 }}
               >
-                {loading ? "Sending verification code..." : "📩 Send Code to New Email"}
+                {loading ? "Sending verification code..." : "Send Code to New Email"}
               </button>
             </form>
           )}
@@ -435,7 +434,7 @@ export default function EmailChangeModal({ user, token, onClose, onEmailUpdated 
                     opacity: loading || newCode.trim().length < 6 ? 0.7 : 1
                   }}
                 >
-                  {loading ? "Confirming..." : "Confirm & Update Email 🎉"}
+                  {loading ? "Confirming..." : "Confirm & Update Email "}
                 </button>
               </div>
             </form>
@@ -444,7 +443,7 @@ export default function EmailChangeModal({ user, token, onClose, onEmailUpdated 
           {/* STEP 5: Success State */}
           {step === 5 && (
             <div style={{ textAlign: "center", padding: "12px 0" }}>
-              <div style={{ fontSize: "3.2rem", marginBottom: "8px" }}>🎉</div>
+              <div style={{ fontSize: "3.2rem", marginBottom: "8px" }}></div>
               <h4 style={{ color: "#15803d", margin: "0 0 10px 0", fontSize: "1.25rem", fontWeight: "700" }}>
                 Email Address Updated!
               </h4>

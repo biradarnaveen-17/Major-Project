@@ -216,7 +216,7 @@ export default function BhoomiApp() {
       };
 
       setLoadReport(finalReport);
-      setMessage("✅ Real-time EVM load test completed live on blockchain!");
+      setMessage("Real-time EVM load test completed live on blockchain!");
       appendAudit("Real-Time EVM Load Test", "Scalability", `Executed real-time workloads: ${targetLoads.join(", ")} txns`);
     } catch (error) {
       console.error("Real-time load test error:", error);
@@ -980,7 +980,7 @@ export default function BhoomiApp() {
       await appendAudit(`${action[0].toUpperCase()}${action.slice(1)} transaction confirmed`, form.landId, `${receipt.gasUsed.toString()} gas | ${tx.hash}`);
       
       if (action === "register") {
-        setMessage(`✅ Land ID #${form.landId} registered on blockchain in block ${receipt.blockNumber}! Gas used: ${receipt.gasUsed.toString()}.`);
+        setMessage(`Land ID #${form.landId} registered on blockchain in block ${receipt.blockNumber}! Gas used: ${receipt.gasUsed.toString()}.`);
         await findLand(form.landId);
         setView(session?.user?.role === "officer" ? "agent" : "farmer");
         await loadPortalData();
@@ -1038,7 +1038,7 @@ export default function BhoomiApp() {
         body: JSON.stringify(body)
       });
       setLandRequests((current) => [request, ...current]);
-      setMessage(`✅ Land-registration request for Survey #${form.survey} (${form.village}) submitted to the Revenue Officer desk.`);
+      setMessage(`Land-registration request for Survey #${form.survey} (${form.village}) submitted to the Revenue Officer desk.`);
       setView("farmer");
       loadPortalData();
     } catch (error) { setMessage(error.message); }
@@ -1219,7 +1219,7 @@ export default function BhoomiApp() {
 
         {view === "farmer" && (
           <section className="page-grid documents">
-            <Card title="Authenticated farmer identity" action={<button type="button" className="small-button" onClick={() => setShowEmailChangeModal(true)}>📧 Change Email ID</button>}>
+            <Card title="Authenticated farmer identity" action={<button type="button" className="small-button" onClick={() => setShowEmailChangeModal(true)}>Change Email ID</button>}>
               <Pill tone="success">Email-code verified</Pill>
               <p style={{ marginTop: "8px" }}><strong>{session.user.fullName}</strong> | username: {session.user.username} | {session.user.email} | mobile ending {session.user.mobile ? session.user.mobile.slice(-4) : "0000"} | Aadhaar ending {session.user.aadhaarLast4 || "0000"}</p>
               <p className="hint">Identity registration and email-code verification were completed before access to this portal. Aadhaar remains off-chain as a secure hash.</p>
@@ -1327,14 +1327,14 @@ export default function BhoomiApp() {
                             e.preventDefault();
                             const found = await findLand(request.landId).catch(() => null);
                             setCertificateLand({ id: String(request.landId), survey: request.surveyNumber, location: `${request.village}, ${request.hobli}, ${request.taluk}, ${request.district}`, area: request.extent, owner: request.walletAddress || DEMO_ACCOUNTS.farmer, status: 0, history: [request.walletAddress || DEMO_ACCOUNTS.farmer], ...(found || {}) });
-                          }}>📜 View Certificate</button>
+                          }}>View Certificate</button>
                         </div>
                       ) : request.status === "Verified" ? (
-                        <small style={{ color: "#2563eb", fontWeight: "600" }}>⚡ Verified (Awaiting Blockchain Minting)</small>
+                        <small style={{ color: "#2563eb", fontWeight: "600" }}>Verified (Awaiting Blockchain Minting)</small>
                       ) : request.status === "Rejected" ? (
-                        <small style={{ color: "#dc2626", fontWeight: "600" }}>❌ Registration Rejected</small>
+                        <small style={{ color: "#dc2626", fontWeight: "600" }}>Registration Rejected</small>
                       ) : (
-                        <small style={{ color: "#d97706", fontWeight: "600" }}>⏳ Pending Officer Verification</small>
+                        <small style={{ color: "#d97706", fontWeight: "600" }}>Pending Officer Verification</small>
                       )}
                     </span>
                   </div>
@@ -1358,9 +1358,9 @@ export default function BhoomiApp() {
                     <dt>Extent (gunta)</dt><dd>{land.area}</dd>
                     {land.survey && <><dt>Survey / revenue location</dt><dd>{land.survey} / {land.location}</dd></>}
                     {land.metadataHash && <><dt>Revenue metadata hash</dt><dd>{land.metadataHash}</dd></>}
-                    <dt>Mutation history</dt><dd>{land.history.map((h) => resolveName(h)).join(" ➔ ")}</dd>
+                    <dt>Mutation history</dt><dd>{land.history.map((h) => resolveName(h)).join(" ->")}</dd>
                   </dl>
-                  <button className="account-button" style={{ marginTop: "14px", width: "100%" }} onClick={() => setCertificateLand(land)}>📜 Generate Digital RTC Certificate (QR Verified)</button>
+                  <button className="account-button" style={{ marginTop: "14px", width: "100%" }} onClick={() => setCertificateLand(land)}>Generate Digital RTC Certificate (QR Verified)</button>
                 </div>
               ) : <p className="empty">Search a registered blockchain ID (e.g. 9002) to inspect ownership and generate RTC certificate.</p>}
             </Card>
@@ -1397,7 +1397,7 @@ export default function BhoomiApp() {
                             e.preventDefault();
                             const found = await findLand(request.landId).catch(() => null);
                             setCertificateLand({ id: String(request.landId), survey: request.surveyNumber, location: `${request.village}, ${request.hobli}, ${request.taluk}, ${request.district}`, area: request.extent, owner: request.walletAddress || DEMO_ACCOUNTS.farmer, status: 0, history: [request.walletAddress || DEMO_ACCOUNTS.farmer], ...(found || {}) });
-                          }}>📜 Issue RTC</button>
+                          }}>Issue RTC</button>
                         </div>
                       )}
                     </span>
@@ -1470,9 +1470,9 @@ export default function BhoomiApp() {
                     <dt>Extent (gunta)</dt><dd>{land.area}</dd>
                     {land.survey && <><dt>Survey / revenue location</dt><dd>{land.survey} / {land.location}</dd></>}
                     {land.metadataHash && <><dt>Revenue metadata hash</dt><dd>{land.metadataHash}</dd></>}
-                    <dt>Mutation history</dt><dd>{land.history.map((h) => resolveName(h)).join(" ➔ ")}</dd>
+                    <dt>Mutation history</dt><dd>{land.history.map((h) => resolveName(h)).join(" ->")}</dd>
                   </dl>
-                  <button className="account-button" style={{ marginTop: "14px", width: "100%" }} onClick={() => setCertificateLand(land)}>📜 Generate Digital RTC Certificate (QR Verified)</button>
+                  <button className="account-button" style={{ marginTop: "14px", width: "100%" }} onClick={() => setCertificateLand(land)}>Generate Digital RTC Certificate (QR Verified)</button>
                 </div>
               ) : <p className="empty">Search a registered blockchain ID such as 9002 to inspect a land record.</p>}
             </Card>
@@ -1500,7 +1500,7 @@ export default function BhoomiApp() {
                 {(!selectedLand || selectedLand.status === 0) && (session?.user?.role !== "officer" && session?.user?.role !== "admin") && (
                   <div style={{ display: "grid", gap: "10px", gridColumn: "1 / -1", background: "#f8fafc", padding: "14px", borderRadius: "10px", border: "1px solid #cbd5e1", margin: "6px 0" }}>
                     <Field
-                      label="🔍 Instant Purchaser Search (Type Name or Username)"
+                      label="Instant Purchaser Search (Type Name or Username)"
                       placeholder="Type name or username to search (e.g. sudeep, raj, hemant)..."
                       value={purchaserQuery}
                       onChange={(e) => setPurchaserQuery(e.target.value)}
@@ -1534,7 +1534,7 @@ export default function BhoomiApp() {
                                   setForm((curr) => ({ ...curr, buyer: p.walletAddress }));
                                 }}
                               >
-                                {isSelected ? "✓ " : ""}{p.fullName} (@{p.username})
+                                {isSelected ? "" : ""}{p.fullName} (@{p.username})
                               </button>
                             );
                           })}
@@ -1558,7 +1558,7 @@ export default function BhoomiApp() {
 
                 {(!selectedLand || selectedLand.status === 0) && (session?.user?.role === "officer" || session?.user?.role === "admin") && (
                   <div style={{ gridColumn: "1 / -1", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "14px", borderRadius: "8px", color: "#1e40af" }}>
-                    <strong>ℹ️ Revenue Officer Notice: Awaiting Owner Nomination</strong>
+                    <strong>Revenue Officer Notice: Awaiting Owner Nomination</strong>
                     <p style={{ margin: "4px 0 0 0", fontSize: "0.9rem" }}>
                       The recorded Khatedar / Owner ({selectedLand ? `Sri / Smt. ${resolveName(selectedLand.owner)}` : "Land Owner"}) must sign in to nominate a purchaser and submit the mutation request. As a Revenue Officer, your role is to verify and approve mutation requests once submitted by land owners.
                     </p>
@@ -1606,7 +1606,7 @@ export default function BhoomiApp() {
 
                 {selectedLand?.status === 1 && session?.user?.role !== "officer" && session?.user?.role !== "admin" && (
                   <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", padding: "10px 14px", borderRadius: "6px", color: "#92400e", fontWeight: "500" }}>
-                    ⏳ Revenue Verification Pending: The mutation request has been submitted to the Revenue Officer desk for verification.
+                    Revenue Verification Pending: The mutation request has been submitted to the Revenue Officer desk for verification.
                   </div>
                 )}
 
@@ -1623,7 +1623,7 @@ export default function BhoomiApp() {
 
                 {selectedLand?.status === 2 && (session?.user?.role === "officer" || session?.user?.role === "admin") && (
                   <div style={{ background: "#dcfce7", border: "1px solid #22c55e", padding: "10px 14px", borderRadius: "6px", color: "#166534", fontWeight: "500" }}>
-                    ⏳ Awaiting Purchaser Acceptance: Verified & approved by Revenue Officer. Awaiting final acceptance from nominated purchaser ({resolveName(selectedLand.pendingOwner)}).
+                    Awaiting Purchaser Acceptance: Verified & approved by Revenue Officer. Awaiting final acceptance from nominated purchaser ({resolveName(selectedLand.pendingOwner)}).
                   </div>
                 )}
               </div>
@@ -1707,7 +1707,7 @@ export default function BhoomiApp() {
                 <div style={{ flex: 1, minWidth: "220px" }}>
                   <input
                     type="text"
-                    placeholder="🔍 Search users by name, username, email, or wallet..."
+                    placeholder="Search users by name, username, email, or wallet..."
                     value={userSearchQuery}
                     onChange={(e) => setUserSearchQuery(e.target.value)}
                     style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1" }}
@@ -1800,7 +1800,7 @@ export default function BhoomiApp() {
                               }}
                               onClick={() => toggleUserStatus(userItem.id, userItem.status || "Active", userItem.fullName)}
                             >
-                              {userItem.status === "Blocked" ? "✅ Unblock" : "🚫 Block"}
+                              {userItem.status === "Blocked" ? "Unblock" : "Block"}
                             </button>
                             <button
                               type="button"
@@ -1808,7 +1808,7 @@ export default function BhoomiApp() {
                               style={{ background: "#dc2626", color: "#ffffff", border: "none" }}
                               onClick={() => deleteUser(userItem.id, userItem.fullName)}
                             >
-                              🗑️ Delete
+                              Delete
                             </button>
                           </div>
                         )}
@@ -1871,7 +1871,7 @@ export default function BhoomiApp() {
 
                     <span>
                       <Pill tone={txItem.variant === "optimized" ? "success" : "warning"}>
-                        {txItem.variant === "optimized" ? "⚡ OptimizedLandRegistry" : "📜 BaseLandRegistry"}
+                        {txItem.variant === "optimized" ? "OptimizedLandRegistry" : "BaseLandRegistry"}
                       </Pill>
                       <small style={{ fontFamily: "monospace", display: "block", marginTop: "4px", fontSize: "0.75rem" }}>
                         {txItem.contractAddress || (txItem.variant === "optimized" ? ADDRESSES.optimized : ADDRESSES.base)}
@@ -1881,7 +1881,7 @@ export default function BhoomiApp() {
                     <span>
                       <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: txItem.variant === "optimized" ? "#dcfce7" : "#fef3c7", color: txItem.variant === "optimized" ? "#15803d" : "#b45309", padding: "4px 8px", borderRadius: "6px", fontWeight: "bold", fontSize: "0.95rem" }}>
-                          ⛽ {Number(txItem.gas).toLocaleString()} gas
+                          {Number(txItem.gas).toLocaleString()} gas
                         </span>
                         <small style={{ color: "#64748b", fontSize: "0.72rem" }}>{txItem.variant === "optimized" ? "~30.3% gas saved" : "Standard storage"}</small>
                       </div>
@@ -1935,7 +1935,7 @@ export default function BhoomiApp() {
                       <span>
                         {gasStr !== "N/A" ? (
                           <span style={{ background: "#f1f5f9", padding: "3px 8px", borderRadius: "4px", fontWeight: "bold", color: "#1e293b", fontSize: "0.85rem" }}>
-                            ⛽ {gasStr}
+                            {gasStr}
                           </span>
                         ) : (
                           <small style={{ color: "#94a3b8" }}>State mutation</small>
@@ -2008,10 +2008,10 @@ export default function BhoomiApp() {
               action={
                 <div style={{ display: "flex", gap: "8px" }}>
                   <button className="small-button" disabled={runningLoadTest} onClick={() => runLoadTest([10])}>
-                    ⚡ Run 10 Txns Live
+                    Run 10 Txns Live
                   </button>
                   <button className="primary" disabled={runningLoadTest} onClick={() => runLoadTest([10, 100, 500])}>
-                    {runningLoadTest ? "⏳ Executing Real-Time EVM..." : "🚀 Execute Real-Time 10, 100, 500 Load Test"}
+                    {runningLoadTest ? "Executing Real-Time EVM..." : "Execute Real-Time 10, 100, 500 Load Test"}
                   </button>
                 </div>
               }
@@ -2032,7 +2032,7 @@ export default function BhoomiApp() {
                   <div style={{ background: "#ffffff", padding: "20px", borderRadius: "12px", border: "1px solid #e2e8f0", marginBottom: "24px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
                       <div>
-                        <h3 style={{ margin: 0, fontSize: "1.1rem", color: "#0f172a" }}>📊 Gas Consumption Histogram (Base vs. Optimized)</h3>
+                        <h3 style={{ margin: 0, fontSize: "1.1rem", color: "#0f172a" }}>Gas Consumption Histogram (Base vs. Optimized)</h3>
                         <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", color: "#64748b" }}>Vertical column comparison across 10, 100, and 500 property transaction workloads</p>
                       </div>
                       <div style={{ display: "flex", gap: "16px", fontSize: "0.85rem" }}>
@@ -2056,7 +2056,7 @@ export default function BhoomiApp() {
                         return (
                           <div key={loadCount} style={{ display: "flex", flexDirection: "column", alignItems: "center", height: "100%", justifyContent: "flex-end" }}>
                             <div style={{ marginBottom: "8px", textAlign: "center" }}>
-                              <Pill tone="success" style={{ fontSize: "0.75rem" }}>⚡ {percentSaved}% Gas Saved</Pill>
+                              <Pill tone="success" style={{ fontSize: "0.75rem" }}>{percentSaved}% Gas Saved</Pill>
                               <small style={{ display: "block", color: "#64748b", fontSize: "0.75rem", marginTop: "2px" }}>({gasSaved.toLocaleString()} gas)</small>
                             </div>
 

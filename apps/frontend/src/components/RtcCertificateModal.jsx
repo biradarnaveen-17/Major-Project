@@ -13,19 +13,19 @@ export default function RtcCertificateModal({ land, contractAddress, onClose, re
     <div className="certificate-overlay" onClick={onClose}>
       <div className="certificate-modal" onClick={(e) => e.stopPropagation()}>
         <div className="certificate-actions">
-          <button onClick={() => window.print()}>🖨️ Print / Save as PDF</button>
-          <button className="quiet" onClick={onClose}>✖ Close</button>
+          <button onClick={() => window.print()}>️ Print / Save as PDF</button>
+          <button className="quiet" onClick={onClose}>XClose</button>
         </div>
         <div className="rtc-certificate-paper">
           <div className="rtc-header">
-            <div className="rtc-emblem">🏛️</div>
+            <div className="rtc-emblem">️</div>
             <h2>Government of Karnataka</h2>
             <h3>Revenue Department — BhoomiChain Land Records</h3>
             <p>Digital Record of Rights, Tenancy and Crops (RTC / Pahani)</p>
           </div>
 
           <div className="rtc-badge-banner">
-            <span className="rtc-badge-icon">🛡️</span>
+            <span className="rtc-badge-icon">️</span>
             <div className="rtc-badge-text">
               <strong>VERIFIED ON ETHEREUM BLOCKCHAIN</strong>
               <small>Tamper-proof record secured by Ethereum Smart Contract</small>
@@ -56,7 +56,7 @@ export default function RtcCertificateModal({ land, contractAddress, onClose, re
           {land.history && land.history.length > 0 && (
             <div className="rtc-history-box">
               <strong>Chain of Title Ownership History:</strong>
-              <p>{land.history.map((h) => resolveName ? resolveName(h) : h).join(" ➔ ")}</p>
+              <p>{land.history.map((h) => resolveName ? resolveName(h) : h).join(" ->")}</p>
             </div>
           )}
 
