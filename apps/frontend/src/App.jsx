@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ethers } from "ethers";
 import {
   API_URL,
@@ -43,6 +43,9 @@ export default function BhoomiApp() {
   const [farmer, setFarmer] = useState(null);
   const [landRequests, setLandRequests] = useState([]);
   const [officers, setOfficers] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [userRoleFilter, setUserRoleFilter] = useState("all");
+  const [userSearchQuery, setUserSearchQuery] = useState("");
   const [officerForm, setOfficerForm] = useState({ fullName: "", username: "", email: "", mobile: "" });
   const [pendingRequestId, setPendingRequestId] = useState(null);
   const [documentForm, setDocumentForm] = useState({ landId: "", category: "RTC / Pahani extract", reference: "", hash: "" });
@@ -340,6 +343,53 @@ export default function BhoomiApp() {
 
   async function appendAudit(action, landId, detail) {
     try { const entry = await api("/api/audit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, landId, actor: accountRole, detail }) }); setAudit((current) => [entry, ...current]); } catch { /* Optional audit API error swallow */ }
+  }
+
+  const loadAllUsers = useCallback(async () => {
+    try {
+      const data = await api("/api/admin/users");
+      setAllUsers(data);
+    } catch (e) {
+      console.warn("Failed to load users:", e.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (session?.user?.role === "admin") {
+      loadAllUsers();
+    }
+  }, [session, loadAllUsers]);
+
+  async function toggleUserStatus(userId, currentStatus, fullName) {
+    const nextStatus = currentStatus === "Blocked" ? "Active" : "Blocked";
+    const confirmMsg = currentStatus === "Blocked"
+      ? `Are you sure you want to UNBLOCK the account for Sri / Smt. ${fullName}?`
+      : `Are you sure you want to BLOCK the account for Sri / Smt. ${fullName}? Blocked users will be denied access to sign in.`;
+    if (!window.confirm(confirmMsg)) return;
+    try {
+      const res = await api(`/api/admin/users/${userId}/status`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: nextStatus })
+      });
+      setMessage(res.message);
+      loadAllUsers();
+      loadOfficers();
+    } catch (err) {
+      setMessage(err.message);
+    }
+  }
+
+  async function deleteUser(userId, fullName) {
+    if (!window.confirm(`Are you sure you want to permanently DELETE the account for Sri / Smt. ${fullName}? This action cannot be undone.`)) return;
+    try {
+      const res = await api(`/api/admin/users/${userId}`, { method: "DELETE" });
+      setMessage(res.message);
+      loadAllUsers();
+      loadOfficers();
+    } catch (err) {
+      setMessage(err.message);
+    }
   }
 
   async function loadOfficers(token = session?.token) {
@@ -1515,7 +1565,137 @@ export default function BhoomiApp() {
 
         {view === "accounts" && session.user.role === "admin" && (
           <section className="page-grid documents">
-            <Card title="Create Revenue Officer account">
+            <Card
+              title="System User Control & Account Management"
+              action={
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <Pill tone="purple">{allUsers.length} total registered accounts</Pill>
+                  <button className="text-button" onClick={loadAllUsers}>Refresh users</button>
+                </div>
+              }
+            >
+              <p className="hint">
+                As System Administrator, you can monitor, block/unblock, or permanently delete any user account across Citizens, Farmers, Purchasers, and Revenue Officers.
+              </p>
+
+              <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ flex: 1, minWidth: "220px" }}>
+                  <input
+                    type="text"
+                    placeholder="🔍 Search users by name, username, email, or wallet..."
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1" }}
+                  />
+                </div>
+                <div style={{ display: "flex", gap: "6px" }}>
+                  {["all", "citizen", "farmer", "purchaser", "officer", "admin"].map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      className="small-button"
+                      style={{
+                        background: userRoleFilter === r ? "#1e3a8a" : "#f1f5f9",
+                        color: userRoleFilter === r ? "#ffffff" : "#475569",
+                        border: "1px solid #cbd5e1",
+                        textTransform: "capitalize"
+                      }}
+                      onClick={() => setUserRoleFilter(r)}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="document-table">
+                <div className="table-row heading" style={{ gridTemplateColumns: "1.2fr 1fr 1fr 0.8fr 1.2fr 1.2fr" }}>
+                  <span>User Details</span>
+                  <span>Username / Email</span>
+                  <span>Mobile</span>
+                  <span>Status</span>
+                  <span>Wallet Address</span>
+                  <span>Actions</span>
+                </div>
+
+                {allUsers
+                  .filter((u) => {
+                    if (userRoleFilter !== "all" && u.role !== userRoleFilter) return false;
+                    if (!userSearchQuery.trim()) return true;
+                    const q = userSearchQuery.trim().toLowerCase();
+                    return (
+                      u.fullName?.toLowerCase().includes(q) ||
+                      u.username?.toLowerCase().includes(q) ||
+                      u.email?.toLowerCase().includes(q) ||
+                      u.walletAddress?.toLowerCase().includes(q)
+                    );
+                  })
+                  .map((userItem) => (
+                    <div className="table-row" key={userItem.id} style={{ gridTemplateColumns: "1.2fr 1fr 1fr 0.8fr 1.2fr 1.2fr", alignItems: "center" }}>
+                      <span>
+                        <strong>{userItem.fullName}</strong>
+                        <div style={{ display: "flex", gap: "4px", marginTop: "2px" }}>
+                          <Pill tone={userItem.role === "admin" ? "purple" : userItem.role === "officer" ? "success" : "neutral"}>
+                            {userItem.role}
+                          </Pill>
+                        </div>
+                      </span>
+
+                      <span>
+                        <strong>{userItem.username}</strong>
+                        <small>{userItem.email}</small>
+                      </span>
+
+                      <span>{userItem.mobile || "N/A"}</span>
+
+                      <span>
+                        <Pill tone={userItem.status === "Blocked" ? "danger" : "success"}>
+                          {userItem.status || "Active"}
+                        </Pill>
+                      </span>
+
+                      <span>
+                        <small style={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
+                          {userItem.walletAddress ? `${userItem.walletAddress.slice(0, 8)}...${userItem.walletAddress.slice(-6)}` : "N/A"}
+                        </small>
+                      </span>
+
+                      <span>
+                        {userItem.role === "admin" || userItem.id === "user-admin" ? (
+                          <small style={{ color: "#94a3b8", fontStyle: "italic" }}>System Protected</small>
+                        ) : (
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              type="button"
+                              className="small-button"
+                              style={{
+                                background: userItem.status === "Blocked" ? "#16a34a" : "#d97706",
+                                color: "#ffffff",
+                                border: "none"
+                              }}
+                              onClick={() => toggleUserStatus(userItem.id, userItem.status || "Active", userItem.fullName)}
+                            >
+                              {userItem.status === "Blocked" ? "✅ Unblock" : "🚫 Block"}
+                            </button>
+                            <button
+                              type="button"
+                              className="small-button"
+                              style={{ background: "#dc2626", color: "#ffffff", border: "none" }}
+                              onClick={() => deleteUser(userItem.id, userItem.fullName)}
+                            >
+                              🗑️ Delete
+                            </button>
+                          </div>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+
+              {allUsers.length === 0 && <p className="empty">No registered user accounts found.</p>}
+            </Card>
+
+            <Card title="Create Revenue Officer Account">
               <form onSubmit={createOfficer}>
                 <div className="form-grid">
                   <Field label="Officer full name" required value={officerForm.fullName} onChange={updateOfficer("fullName")} />
@@ -1526,22 +1706,6 @@ export default function BhoomiApp() {
                 <p className="hint">Revenue Officers cannot self-register. Only an authenticated System Administrator can create their accounts. They sign in with CAPTCHA and an email code.</p>
                 <button type="submit">Create officer account</button>
               </form>
-            </Card>
-
-            <Card title="Controlled Revenue Officer accounts" action={<button className="text-button" onClick={() => loadOfficers()}>Refresh</button>}>
-              <div className="document-table">
-                <div className="table-row heading"><span>Officer</span><span>Username / email</span><span>Mobile</span><span>Status</span><span>Action</span></div>
-                {officers.map((officer) => (
-                  <div className="table-row" key={officer.id}>
-                    <span><strong>{officer.fullName}</strong><small>Created {new Date(officer.createdAt).toLocaleDateString()}</small></span>
-                    <span>{officer.username}<small>{officer.email}</small></span>
-                    <span>{officer.mobile}</span>
-                    <span><Pill tone="success">{officer.status}</Pill></span>
-                    <span><button className="small-button" style={{ background: "#dc2626", color: "#ffffff", border: "none" }} onClick={() => deleteOfficer(officer.id, officer.fullName)}>🗑️ Delete</button></span>
-                  </div>
-                ))}
-              </div>
-              {officers.length === 0 && <p className="empty">No Revenue Officer accounts have been created yet.</p>}
             </Card>
           </section>
         )}

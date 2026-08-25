@@ -703,6 +703,50 @@ app.post("/api/auth/change-email/step4-verify-new", (request, response) => {
   });
 });
 
+app.get("/api/admin/users", (request, response) => {
+  return response.json(state.users.map((u) => ({ ...safeUser(u), walletAddress: getWalletForUser(u) })));
+});
+
+app.patch("/api/admin/users/:id/status", (request, response) => {
+  const { status } = request.body || {};
+  const user = state.users.find((u) => u.id === request.params.id);
+  if (!user) return response.status(404).json({ message: "User account not found." });
+  if (user.role === "admin" || user.id === "user-admin" || user.username === "admin") {
+    return response.status(403).json({ message: "System Administrator account status cannot be modified." });
+  }
+  const newStatus = status === "Blocked" ? "Blocked" : "Active";
+  user.status = newStatus;
+  addAudit({
+    action: newStatus === "Blocked" ? "User account BLOCKED" : "User account UNBLOCKED",
+    landId: "Identity",
+    actor: "Administrator",
+    detail: `Account for ${user.fullName} (${user.username}) set to ${newStatus}`
+  });
+  saveState();
+  return response.json({ message: `User Sri / Smt. ${user.fullName} status updated to ${newStatus}.`, user: safeUser(user) });
+});
+
+app.delete("/api/admin/users/:id", (request, response) => {
+  const userIndex = state.users.findIndex((u) => u.id === request.params.id);
+  if (userIndex === -1) return response.status(404).json({ message: "User account not found." });
+  const targetUser = state.users[userIndex];
+  if (targetUser.role === "admin" || targetUser.id === "user-admin" || targetUser.username === "admin") {
+    return response.status(403).json({ message: "System Administrator account cannot be deleted." });
+  }
+  const [deletedUser] = state.users.splice(userIndex, 1);
+  const farmerIndex = state.farmers.findIndex((f) => f.id === targetUser.id || f.userId === targetUser.id || f.email.toLowerCase() === targetUser.email.toLowerCase());
+  if (farmerIndex !== -1) state.farmers.splice(farmerIndex, 1);
+
+  addAudit({
+    action: "User account DELETED",
+    landId: "Identity",
+    actor: "Administrator",
+    detail: `Deleted ${deletedUser.fullName} (${deletedUser.username})`
+  });
+  saveState();
+  return response.json({ message: `User Sri / Smt. ${deletedUser.fullName} deleted successfully.` });
+});
+
 app.get("/api/admin/officers", requireAdmin, (_request, response) => response.json(state.users.filter((user) => user.role === "officer").map(safeUser)));
 
 app.post("/api/admin/officers", requireAdmin, (request, response) => {
