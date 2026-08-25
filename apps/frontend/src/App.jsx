@@ -801,7 +801,48 @@ export default function BhoomiApp() {
         tx = await registry.requestTransfer(numericLandId, targetBuyer);
       }
       if (action === "approve") tx = await registry.approveTransfer(numericLandId);
-      if (action === "transfer") tx = await registry.transferOwnership(numericLandId);
+      if (action === "transfer") {
+        let details;
+        try {
+          details = await registry.getLandDetails.staticCall(numericLandId);
+        } catch {
+          throw new Error("Land ID #" + form.landId + " is not registered on the active contract yet.");
+        }
+
+        const onChainStatus = details ? Number(details.status ?? details[6] ?? details[4] ?? 0) : 0;
+        const pendingOwnerAddr = details ? String(details.pendingOwner || details[5] || details[3] || "") : "";
+
+        if (onChainStatus === 0) {
+          throw new Error("Transfer has not been requested yet. Select a purchaser and click 'Request transfer' first.");
+        }
+
+        if (onChainStatus === 1) {
+          const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
+          const authorityRegistry = contract(true, authoritySigner);
+          const approveTx = await authorityRegistry.approveTransfer(numericLandId);
+          await approveTx.wait();
+        }
+
+        let transferSigner = signer;
+        if (pendingOwnerAddr && ethers.isAddress(pendingOwnerAddr)) {
+          const cleanPending = pendingOwnerAddr.toLowerCase();
+          const buyerUser = (purchasers || []).find((p) => String(p.walletAddress || "").toLowerCase() === cleanPending);
+          let buyerPk;
+          if (buyerUser) {
+            buyerPk = buyerUser.privateKey || ethers.keccak256(ethers.toUtf8Bytes(String(buyerUser.id || buyerUser.username)));
+          } else if (cleanPending === DEMO_ACCOUNTS.buyer.toLowerCase()) {
+            buyerPk = DEMO_KEYS.buyer;
+          } else if (cleanPending === DEMO_ACCOUNTS.farmer.toLowerCase()) {
+            buyerPk = DEMO_KEYS.farmer;
+          } else {
+            buyerPk = ethers.keccak256(ethers.toUtf8Bytes(cleanPending));
+          }
+          transferSigner = new ethers.Wallet(buyerPk, wallet?.provider || defaultProvider);
+        }
+
+        const transferRegistry = contract(true, transferSigner);
+        tx = await transferRegistry.transferOwnership(numericLandId);
+      }
       const receipt = await tx.wait(); const gasPrice = receipt.gasPrice || 0n;
       const newGas = Number(receipt.gasUsed);
       const opName = action === "request" ? "requestTransfer" : action === "approve" ? "approveTransfer" : action === "transfer" ? "transferOwnership" : action === "register" ? "registerLand" : action;
