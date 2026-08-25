@@ -820,31 +820,45 @@ export default function BhoomiApp() {
         }
         if (!ethers.isAddress(targetBuyer)) throw new Error("Please select a registered purchaser from the dropdown list.");
 
+        const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
+        const authorityRegistry = contract(true, authoritySigner);
+
         let details = null;
         try {
           details = await registry.getLandDetails(numericLandId);
         } catch {
+          details = null;
+        }
+
+        if (!details) {
+          const ownerAddr = targetLand?.owner || wallet?.account || DEMO_ACCOUNTS.farmer;
+          const surveyNum = targetLand?.survey ? targetLand.survey : `SUR-${numericLandId}`;
+          const loc = targetLand?.location || `${form.village || "Jakkur"}, Bengaluru North, Bengaluru Urban`;
+          const areaVal = targetLand?.area || form.area || "48";
+          const uniqueParcelKey = `${surveyNum}-${numericLandId}`;
+          const metaHash = ethers.keccak256(ethers.toUtf8Bytes(parcelMetadata(uniqueParcelKey, form.district, form.taluk, form.hobli, form.village)));
+          
           try {
-            const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
-            const authorityRegistry = contract(true, authoritySigner);
-            const ownerAddr = targetLand?.owner || wallet?.account || DEMO_ACCOUNTS.farmer;
-            const surveyNum = targetLand?.survey || form.survey || `SUR-${numericLandId}`;
-            const loc = targetLand?.location || `${form.village}, ${form.hobli}, ${form.taluk}, ${form.district}`;
-            const areaVal = targetLand?.area || form.area || "48";
-            const metaHash = ethers.keccak256(ethers.toUtf8Bytes(parcelMetadata(surveyNum, form.district, form.taluk, form.hobli, form.village)));
-            
+            const isReg = await authorityRegistry.registrars(authoritySigner.address).catch(() => true);
+            if (!isReg) {
+              const setRegTx = await authorityRegistry.setRegistrar(authoritySigner.address, true);
+              await setRegTx.wait();
+            }
+          } catch { /* Ignore */ }
+
+          try {
             const regTx = variant === "base"
               ? await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](numericLandId, ownerAddr, surveyNum, loc, areaVal)
               : await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](numericLandId, ownerAddr, metaHash, areaVal);
             await regTx.wait();
             details = await authorityRegistry.getLandDetails(numericLandId).catch(() => null);
           } catch (regErr) {
-            console.warn("Auto-register on request step skipped:", regErr.message);
+            console.warn("Auto-register fallback attempt:", regErr.message);
           }
         }
 
         const onChainOwner = details ? String(details.currentOwner || details.owner || (variant === "base" ? details[4] : details[0]) || "") : "";
-        const requestSigner = resolveSignerForAddress(onChainOwner || targetLand?.owner);
+        const requestSigner = resolveSignerForAddress(onChainOwner || targetLand?.owner || wallet?.account);
 
         try {
           const activeProvider = wallet?.provider || defaultProvider;
