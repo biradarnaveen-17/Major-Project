@@ -814,26 +814,30 @@ export default function BhoomiApp() {
         }
         if (!ethers.isAddress(targetBuyer)) throw new Error("Please select a registered purchaser from the dropdown list.");
 
-        let details;
+        let details = null;
         try {
-          details = await registry.getLandDetails.staticCall(numericLandId);
+          details = await registry.getLandDetails(numericLandId);
         } catch {
-          const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet.provider || defaultProvider);
-          const authorityRegistry = contract(true, authoritySigner);
-          const ownerAddr = targetLand?.owner || wallet?.account || DEMO_ACCOUNTS.farmer;
-          const surveyNum = targetLand?.survey || form.survey || `SUR-${numericLandId}`;
-          const loc = targetLand?.location || `${form.village}, ${form.hobli}, ${form.taluk}, ${form.district}`;
-          const areaVal = targetLand?.area || form.area || "48";
-          const metaHash = ethers.keccak256(ethers.toUtf8Bytes(parcelMetadata(surveyNum, form.district, form.taluk, form.hobli, form.village)));
-          
-          const regTx = variant === "base"
-            ? await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](numericLandId, ownerAddr, surveyNum, loc, areaVal)
-            : await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](numericLandId, ownerAddr, metaHash, areaVal);
-          await regTx.wait();
-          details = await authorityRegistry.getLandDetails.staticCall(numericLandId);
+          try {
+            const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
+            const authorityRegistry = contract(true, authoritySigner);
+            const ownerAddr = targetLand?.owner || wallet?.account || DEMO_ACCOUNTS.farmer;
+            const surveyNum = targetLand?.survey || form.survey || `SUR-${numericLandId}`;
+            const loc = targetLand?.location || `${form.village}, ${form.hobli}, ${form.taluk}, ${form.district}`;
+            const areaVal = targetLand?.area || form.area || "48";
+            const metaHash = ethers.keccak256(ethers.toUtf8Bytes(parcelMetadata(surveyNum, form.district, form.taluk, form.hobli, form.village)));
+            
+            const regTx = variant === "base"
+              ? await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](numericLandId, ownerAddr, surveyNum, loc, areaVal)
+              : await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](numericLandId, ownerAddr, metaHash, areaVal);
+            await regTx.wait();
+            details = await authorityRegistry.getLandDetails(numericLandId).catch(() => null);
+          } catch (regErr) {
+            console.warn("Auto-register on request step skipped:", regErr.message);
+          }
         }
 
-        const onChainOwner = details ? String(details.owner || details[1] || "") : "";
+        const onChainOwner = details ? String(details.owner || details[4] || details[0] || "") : "";
         const requestSigner = resolveSignerForAddress(onChainOwner || targetLand?.owner);
         const requestRegistry = contract(true, requestSigner);
         tx = await requestRegistry.requestTransfer(numericLandId, targetBuyer);
@@ -844,19 +848,15 @@ export default function BhoomiApp() {
         tx = await authorityRegistry.approveTransfer(numericLandId);
       }
       if (action === "transfer") {
-        let details;
+        let details = null;
         try {
-          details = await registry.getLandDetails.staticCall(numericLandId);
+          details = await registry.getLandDetails(numericLandId);
         } catch {
-          throw new Error("Land ID #" + form.landId + " is not registered on the active contract yet.");
+          /* Fallback to local record if getLandDetails throws */
         }
 
-        const onChainStatus = details ? Number(details.status ?? details[5] ?? details[4] ?? 0) : 0;
-        const pendingOwnerAddr = details ? String(details.pendingOwner || details[6] || details[5] || "") : "";
-
-        if (onChainStatus === 0) {
-          throw new Error("Transfer has not been requested yet. Select a purchaser and click 'Submit Mutation Request' first.");
-        }
+        const onChainStatus = details ? Number(details.status ?? details[6] ?? details[4] ?? 0) : 0;
+        const pendingOwnerAddr = details ? String(details.pendingOwner || details[5] || details[3] || "") : "";
 
         if (onChainStatus === 1) {
           const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
@@ -865,7 +865,7 @@ export default function BhoomiApp() {
           await approveTx.wait();
         }
 
-        const transferSigner = resolveSignerForAddress(pendingOwnerAddr);
+        const transferSigner = resolveSignerForAddress(pendingOwnerAddr || targetLand?.pendingOwner);
         const transferRegistry = contract(true, transferSigner);
         tx = await transferRegistry.transferOwnership(numericLandId);
       }
