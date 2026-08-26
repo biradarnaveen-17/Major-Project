@@ -24,7 +24,7 @@ function toKannada(text) {
 export default function RtcCertificateModal({ land, contractAddress, onClose, resolveName }) {
   if (!land) return null;
 
-  const landIdStr = String(land.id || land.landId || "Record");
+  const landIdStr = String(land.id || land.landId || "8888001");
   const surveyNo = land.survey || "64/1";
   const revenueLocation = land.location || "Attur, Yelahanka, Bengaluru North, Bengaluru Urban";
   const ownerName = resolveName ? resolveName(land.owner) : (land.ownerName || "Sri / Smt. Khatedar");
@@ -34,6 +34,9 @@ export default function RtcCertificateModal({ land, contractAddress, onClose, re
   const hobli = locationParts[1] || "Yelahanka";
   const taluk = locationParts[2] || "Bengaluru North";
   const district = locationParts[3] || "Bengaluru Urban";
+
+  // Official Barcode URL encoding Land ID (Code 128 format)
+  const barcodeUrl = `https://barcodeapi.org/api/128/BC-${landIdStr}`;
 
   const handlePrint = () => {
     const originalTitle = document.title;
@@ -221,12 +224,19 @@ export default function RtcCertificateModal({ land, contractAddress, onClose, re
             </tbody>
           </table>
 
+          {/* Footer Barcode & Official Signature */}
           <div style={styles.footer}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div style={{ width: "36px", height: "36px", border: "1px solid #475569", color: "#334155", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.45rem", textAlign: "center" }}>
-                QR CODE
-              </div>
-              <div style={{ fontSize: "0.68rem", color: "#64748b" }}>Scan to verify on-chain</div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
+              <img 
+                src={barcodeUrl} 
+                alt={`Land Record Barcode BC-${landIdStr}`} 
+                style={{ height: "34px", maxWidth: "160px", objectFit: "contain" }}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = `https://bwipjs-api.metafloor.com/bwipjs?bcid=code128&text=BC-${landIdStr}&scale=2&height=10`;
+                }}
+              />
+              <div style={{ fontSize: "0.65rem", color: "#64748b" }}>Government Land Record Barcode (BC-{landIdStr})</div>
             </div>
 
             <div style={{ textAlign: "center", fontSize: "0.76rem", color: "#334155" }}>
