@@ -1,7 +1,7 @@
 const currentHost = typeof window !== "undefined" && window.location.hostname ? window.location.hostname : "localhost";
 export const API_URL = `http://${currentHost}:5000`;
 export const RPC_URL = `http://${currentHost}:8545`;
-export const ADDRESSES = { base: "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9", optimized: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707" };
+export const ADDRESSES = { base: "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e", optimized: "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0" };
 export const DEMO_ACCOUNTS = { authority: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266", buyer: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", farmer: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC", raj: "0x90F79bf6EB2c4f870365E785982E1f101E93b906" };
 export const DEFAULT_DEMO_LAND_ID = String(Date.now());
 export const NAV = [["overview", "Dashboard"], ["farmer", "My land & registration"], ["agent", "Revenue officer desk"], ["registry", "Land registration"], ["transfer", "Mutation & transfer"], ["documents", "RTC & documents"], ["accounts", "Officer accounts"], ["gaslog", "Live EVM Gas Audit"], ["analytics", "Gas analysis"], ["loadtest", "Workload benchmark (10, 100, 500)"], ["audit", "Audit register"]];
