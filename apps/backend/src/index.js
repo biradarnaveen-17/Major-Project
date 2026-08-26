@@ -948,7 +948,7 @@ app.patch("/api/land-requests/:id/registered", (request, response) => {
 });
 
 app.patch("/api/land-requests/transfer-owner/:landId", (request, response) => {
-  const { newOwnerWallet, newOwnerName } = request.body || {};
+  const { newOwnerWallet, newOwnerName, surveyNumber, village, hobli, taluk, district, extent } = request.body || {};
   const landIdStr = String(request.params.landId);
   let landRequest = state.landRequests.find((item) => String(item.landId) === landIdStr);
   
@@ -957,6 +957,12 @@ app.patch("/api/land-requests/transfer-owner/:landId", (request, response) => {
     if (newOwnerName) landRequest.farmerName = newOwnerName;
   } else {
     const matchUser = state.users.find((u) => u.walletAddress?.toLowerCase() === String(newOwnerWallet || "").toLowerCase());
+    const finalSurvey = surveyNumber || "12/3A";
+    const finalVillage = village || "Jakkur";
+    const finalHobli = hobli || "Yelahanka";
+    const finalTaluk = taluk || "Bengaluru North";
+    const finalDistrict = district || "Bengaluru Urban";
+    const finalExtent = extent || "48";
     landRequest = {
       id: crypto.randomUUID(),
       landId: landIdStr,
@@ -965,13 +971,13 @@ app.patch("/api/land-requests/transfer-owner/:landId", (request, response) => {
       email: matchUser ? matchUser.email : "",
       mobile: matchUser ? matchUser.mobile : "",
       walletAddress: newOwnerWallet,
-      surveyNumber: `SUR-${landIdStr}`,
-      district: "Bengaluru Urban",
-      taluk: "Bengaluru North",
-      hobli: "Yelahanka",
-      village: "Jakkur",
-      extent: "48",
-      parcelKey: `SUR-${landIdStr}|Jakkur`,
+      surveyNumber: finalSurvey,
+      district: finalDistrict,
+      taluk: finalTaluk,
+      hobli: finalHobli,
+      village: finalVillage,
+      extent: finalExtent,
+      parcelKey: `${finalSurvey}|${finalVillage}`,
       status: "Registered on blockchain",
       createdAt: new Date().toISOString(),
       verifiedAt: new Date().toISOString(),
