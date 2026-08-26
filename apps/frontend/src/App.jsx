@@ -748,6 +748,7 @@ export default function BhoomiApp() {
     if (clean === DEMO_ACCOUNTS.buyer.toLowerCase()) return new ethers.Wallet(DEMO_KEYS.buyer, activeProvider);
     if (clean === DEMO_ACCOUNTS.farmer.toLowerCase()) return new ethers.Wallet(DEMO_KEYS.farmer, activeProvider);
     if (clean === DEMO_ACCOUNTS.authority.toLowerCase()) return new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
+    if (DEMO_ACCOUNTS.raj && clean === DEMO_ACCOUNTS.raj.toLowerCase()) return new ethers.Wallet(DEMO_KEYS.raj, activeProvider);
 
     if (session?.user) {
       const u = session.user;
