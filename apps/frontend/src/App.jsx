@@ -358,7 +358,7 @@ export default function BhoomiApp() {
   }, []);
 
   useEffect(() => {
-    if (session?.user?.role === "admin") {
+    if (session?.token) {
       loadAllUsers();
     }
   }, [session, loadAllUsers]);
@@ -748,6 +748,16 @@ export default function BhoomiApp() {
     if (clean === DEMO_ACCOUNTS.buyer.toLowerCase()) return new ethers.Wallet(DEMO_KEYS.buyer, activeProvider);
     if (clean === DEMO_ACCOUNTS.farmer.toLowerCase()) return new ethers.Wallet(DEMO_KEYS.farmer, activeProvider);
     if (clean === DEMO_ACCOUNTS.authority.toLowerCase()) return new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
+
+    if (session?.user) {
+      const u = session.user;
+      const uWallet = (u.walletAddress || "").toLowerCase();
+      const derivedWallet = new ethers.Wallet(ethers.keccak256(ethers.toUtf8Bytes(String(u.id || u.username)))).address.toLowerCase();
+      if (clean === uWallet || clean === derivedWallet || (u.fullName && resolveName(targetAddr) === u.fullName)) {
+        const pk = u.privateKey || ethers.keccak256(ethers.toUtf8Bytes(String(u.id || u.username)));
+        return new ethers.Wallet(pk, activeProvider);
+      }
+    }
 
     const combinedUsers = [...(allUsers || []), ...(purchasers || [])];
     const match = combinedUsers.find((u) => {
