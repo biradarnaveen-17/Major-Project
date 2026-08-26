@@ -931,6 +931,15 @@ export default function BhoomiApp() {
       if (action === "transfer") {
         const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
         const authorityRegistry = new ethers.Contract(landAddress, landAbi, authoritySigner);
+
+        try {
+          const isReg = await authorityRegistry.registrars(authoritySigner.address).catch(() => true);
+          if (!isReg) {
+            const setRegTx = await authorityRegistry.setRegistrar(authoritySigner.address, true);
+            await setRegTx.wait();
+          }
+        } catch { /* Ignore */ }
+
         let details = null;
         try {
           const raw = await authorityRegistry.getLandDetails(numericLandId);
@@ -940,10 +949,24 @@ export default function BhoomiApp() {
         }
 
         const onChainStatus = details ? details.status : Number(targetLand?.status || 0);
-        const pendingOwnerAddr = (details && details.pendingOwner) ? details.pendingOwner : (targetLand?.pendingOwner || form.buyer);
+        let pendingOwnerAddr = (details && details.pendingOwner && details.pendingOwner !== ethers.ZeroAddress) ? details.pendingOwner : (targetLand?.pendingOwner || form.buyer);
 
         if (!pendingOwnerAddr || pendingOwnerAddr === ethers.ZeroAddress) {
-          throw new Error("No pending purchaser found for this land. Submit a mutation request first.");
+          for (const v of ["optimized", "base"]) {
+            try {
+              const altC = new ethers.Contract(ADDRESSES[v], v === "base" ? BASE_ABI : OPTIMIZED_ABI, authoritySigner);
+              const altRaw = await altC.getLandDetails(numericLandId);
+              const altDet = parseLandDetails(altRaw, v);
+              if (altDet && altDet.pendingOwner && altDet.pendingOwner !== ethers.ZeroAddress) {
+                pendingOwnerAddr = altDet.pendingOwner;
+                break;
+              }
+            } catch { /* Ignore */ }
+          }
+        }
+
+        if (!pendingOwnerAddr || pendingOwnerAddr === ethers.ZeroAddress) {
+          throw new Error(`No pending purchaser found for land #${form.landId}. Please submit a mutation request (Step 1) first.`);
         }
 
         if (onChainStatus === 1) {
