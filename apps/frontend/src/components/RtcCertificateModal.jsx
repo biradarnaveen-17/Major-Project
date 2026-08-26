@@ -35,6 +35,12 @@ export default function RtcCertificateModal({ land, contractAddress, onClose, re
   const taluk = locationParts[2] || "Bengaluru North";
   const district = locationParts[3] || "Bengaluru Urban";
 
+  // Rich Multi-Line Data for QR Code Scanning
+  const fullRtcDataString = `BhoomiChain Verified RTC | Land ID: #${landIdStr} | Survey No: ${surveyNo} | Owner: ${ownerName} (${land.owner || ''}) | Location: ${village}, ${hobli}, ${district} | Area: ${land.area || 50} Gunta | Contract: ${contractAddress || '0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e'}`;
+  
+  // Live Scannable QR Code URL
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(fullRtcDataString)}`;
+
   // Official Barcode URL encoding Land ID (Code 128 format)
   const barcodeUrl = `https://barcodeapi.org/api/128/BC-${landIdStr}`;
 
@@ -224,19 +230,30 @@ export default function RtcCertificateModal({ land, contractAddress, onClose, re
             </tbody>
           </table>
 
-          {/* Footer Barcode & Official Signature */}
+          {/* Footer Scannable QR Code & Barcode */}
           <div style={styles.footer}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
-              <img 
-                src={barcodeUrl} 
-                alt={`Land Record Barcode BC-${landIdStr}`} 
-                style={{ height: "34px", maxWidth: "160px", objectFit: "contain" }}
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = `https://bwipjs-api.metafloor.com/bwipjs?bcid=code128&text=BC-${landIdStr}&scale=2&height=10`;
-                }}
-              />
-              <div style={{ fontSize: "0.65rem", color: "#64748b" }}>Government Land Record Barcode (BC-{landIdStr})</div>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div style={{ textAlign: "center" }}>
+                <img 
+                  src={qrCodeUrl} 
+                  alt="Scannable Live QR Code" 
+                  style={{ width: "50px", height: "50px", objectFit: "contain", border: "1px solid #cbd5e1", padding: "2px", background: "#fff" }}
+                />
+                <div style={{ fontSize: "0.6rem", color: "#475569", marginTop: "1px" }}>Scan QR for Full Record</div>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "2px" }}>
+                <img 
+                  src={barcodeUrl} 
+                  alt={`Land Record Barcode BC-${landIdStr}`} 
+                  style={{ height: "30px", maxWidth: "140px", objectFit: "contain" }}
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = `https://bwipjs-api.metafloor.com/bwipjs?bcid=code128&text=BC-${landIdStr}&scale=2&height=10`;
+                  }}
+                />
+                <div style={{ fontSize: "0.6rem", color: "#64748b" }}>Barcode (BC-{landIdStr})</div>
+              </div>
             </div>
 
             <div style={{ textAlign: "center", fontSize: "0.76rem", color: "#334155" }}>
