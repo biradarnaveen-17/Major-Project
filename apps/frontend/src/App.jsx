@@ -641,6 +641,40 @@ export default function BhoomiApp() {
     return (BigInt(hash) % 900000000000n + 100000000000n).toString();
   }
 
+  function parseLandDetails(details, targetVariant = variant) {
+    if (!details) return null;
+    try {
+      if (targetVariant === "base") {
+        const rawPending = details.pendingOwner || details[5] || "";
+        const pendingClean = (!rawPending || rawPending === ethers.ZeroAddress) ? "" : rawPending;
+        return {
+          id: (details.id || details[0] || "").toString(),
+          survey: details.surveyNumber || details[1] || "",
+          location: details.location || details[2] || "",
+          area: (details.area || details[3] || "0").toString(),
+          owner: details.currentOwner || details[4] || "",
+          pendingOwner: pendingClean,
+          status: Number(details.transferStatus ?? details[6] ?? 0),
+          history: details.ownershipHistory || details[7] || []
+        };
+      } else {
+        const rawPending = details.pendingOwner || details[3] || "";
+        const pendingClean = (!rawPending || rawPending === ethers.ZeroAddress) ? "" : rawPending;
+        return {
+          owner: details.currentOwner || details[0] || "",
+          area: (details.area || details[1] || "0").toString(),
+          metadataHash: details.metadataHash || details[2] || "",
+          pendingOwner: pendingClean,
+          status: Number(details.transferStatus ?? details[4] ?? 0),
+          history: details.ownershipHistory || details[5] || []
+        };
+      }
+    } catch (e) {
+      console.warn("parseLandDetails error:", e.message);
+      return null;
+    }
+  }
+
   async function findLand(landIdInput = form.lookupId, silent = false) {
     if (!landIdInput) return null;
     const activeProvider = wallet?.provider || defaultProvider;
@@ -675,7 +709,7 @@ export default function BhoomiApp() {
             location: `${localReq.village || 'Bengaluru'}, ${localReq.hobli || ''}, ${localReq.taluk || ''}, ${localReq.district || ''}`.replace(/,\s*,/g, ',').trim(),
             area: localReq.extent || "50",
             owner: localReq.walletAddress || wallet?.account || "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-            pendingOwner: ethers.ZeroAddress,
+            pendingOwner: "",
             status: 0,
             history: [localReq.walletAddress || wallet?.account || "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"]
           };
@@ -689,13 +723,16 @@ export default function BhoomiApp() {
         setLand(null);
         return null;
       }
-      const item = foundVariant === "base"
-        ? { id: result[0].toString(), survey: result[1], location: result[2], area: result[3].toString(), owner: result[4], pendingOwner: result[5], status: Number(result[6]), history: result[7] }
-        : { id: String(landIdInput), metadataHash: result[2], area: result[1].toString(), owner: result[0], pendingOwner: result[3], status: Number(result[4]), history: result[5] };
-      setLand(item);
-      setForm((current) => ({ ...current, landId: String(landIdInput), lookupId: String(landIdInput) }));
-      if (!silent) setMessage(`Land record #${landIdInput} loaded from blockchain (${foundVariant === "optimized" ? "Optimized" : "Base"} contract).`);
-      return item;
+      const item = parseLandDetails(result, foundVariant);
+      if (item) {
+        if (foundVariant === "optimized") item.id = String(landIdInput);
+        setLand(item);
+        setForm((current) => ({ ...current, landId: String(landIdInput), lookupId: String(landIdInput) }));
+        if (!silent) setMessage(`Land record #${landIdInput} loaded from blockchain (${foundVariant === "optimized" ? "Optimized" : "Base"} contract).`);
+        return item;
+      }
+      setLand(null);
+      return null;
     } catch {
       if (!silent) setMessage(`Unable to retrieve land record #${landIdInput}.`);
       setLand(null);
@@ -747,64 +784,40 @@ export default function BhoomiApp() {
   }
 
   async function submit(action) {
-    let registry;
+    if (!form.landId) {
+      setMessage("Please enter or select a valid land ID first.");
+      return;
+    }
+    const numericLandId = toNumericLandId(form.landId);
+    const targetLand = land || (allMyHoldings || []).find((l) => String(l.landId || l.id) === String(form.landId));
+    setBusyAction(action);
+    setMessage(`Preparing ${action} transaction for land ID #${form.landId}...`);
+
     try {
-      setBusyAction(action);
-      const numericLandId = toNumericLandId(form.landId);
-      let targetLand = selectedLand;
-      if (action !== "register") {
-        if (!targetLand || String(targetLand.id) !== String(form.landId)) {
-          targetLand = await findLand(form.landId);
-        }
-        if (!targetLand) {
-          throw new Error(`Land ID #${form.landId} is not registered on the active contract.`);
-        }
-      }
       const activeProvider = wallet?.provider || defaultProvider;
       const signer = await signerFor(action, targetLand);
-      
-      try {
-        const signerAddress = await signer.getAddress();
-        const signerBalance = await activeProvider.getBalance(signerAddress);
-        if (signerBalance < ethers.parseEther("0.1")) {
-          const faucet = new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
-          const fundTx = await faucet.sendTransaction({
-            to: signerAddress,
-            value: ethers.parseEther("1.0")
-          });
-          await fundTx.wait();
+
+      if (action !== "approve") {
+        try {
+          const signerAddress = await signer.getAddress();
+          const signerBalance = await activeProvider.getBalance(signerAddress);
+          if (signerBalance < ethers.parseEther("0.1")) {
+            const faucet = new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
+            const fundTx = await faucet.sendTransaction({ to: signerAddress, value: ethers.parseEther("1.0") });
+            await fundTx.wait();
+          }
+        } catch (gasErr) {
+          console.warn("Gas faucet auto-topup skipped:", gasErr.message);
         }
-      } catch (err) {
-        console.warn("Pre-tx auto-faucet skipped:", err.message);
       }
 
-      registry = contract(true, signer);
       let tx;
       if (action === "register") {
-        let validOwner = form.owner;
-        if (!ethers.isAddress(validOwner)) {
-          try {
-            const pk = ethers.keccak256(ethers.toUtf8Bytes(String(validOwner || "farmer")));
-            validOwner = new ethers.Wallet(pk).address;
-          } catch {
-            validOwner = DEMO_ACCOUNTS.farmer;
-          }
-          setForm((curr) => ({ ...curr, owner: validOwner }));
-        }
-
-        const revenueLocation = [form.village, form.hobli, form.taluk, form.district].filter(Boolean).join(", ");
-        if (!form.survey.trim() || !revenueLocation) throw new Error("Survey number and revenue location details are required.");
-
-        try {
-          await registry.getLandDetails.staticCall(numericLandId);
-          throw new Error(errorText.DuplicateRegistration);
-        } catch (error) {
-          if (error?.message === errorText.DuplicateRegistration) throw error;
-        }
-
+        const revenueLocation = `${form.village}, ${form.hobli}, ${form.taluk}, ${form.district}`;
         const metadataHash = ethers.keccak256(ethers.toUtf8Bytes(parcelMetadata(form.survey, form.district, form.taluk, form.hobli, form.village)));
-        
-        const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
+        const validOwner = (form.owner && ethers.isAddress(form.owner)) ? form.owner : wallet?.account || DEMO_ACCOUNTS.farmer;
+
+        const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
         const authorityRegistry = new ethers.Contract(address, variant === "base" ? BASE_ABI : OPTIMIZED_ABI, authoritySigner);
 
         try {
@@ -840,7 +853,8 @@ export default function BhoomiApp() {
 
         let details = null;
         try {
-          details = await registry.getLandDetails(numericLandId);
+          const raw = await registry.getLandDetails(numericLandId);
+          details = parseLandDetails(raw, variant);
         } catch {
           details = null;
         }
@@ -866,14 +880,15 @@ export default function BhoomiApp() {
               ? await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](numericLandId, ownerAddr, surveyNum, loc, areaVal)
               : await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](numericLandId, ownerAddr, metaHash, areaVal);
             await regTx.wait();
-            details = await authorityRegistry.getLandDetails(numericLandId).catch(() => null);
+            const raw = await authorityRegistry.getLandDetails(numericLandId).catch(() => null);
+            details = parseLandDetails(raw, variant);
           } catch (regErr) {
             console.warn("Auto-register fallback attempt:", regErr.message);
           }
         }
 
-        const onChainOwner = details ? String(details.currentOwner || details.owner || (variant === "base" ? details[4] : details[0]) || "") : "";
-        const requestSigner = resolveSignerForAddress(onChainOwner || targetLand?.owner || wallet?.account);
+        const onChainOwner = details?.owner || targetLand?.owner || wallet?.account;
+        const requestSigner = resolveSignerForAddress(onChainOwner);
 
         try {
           const activeProvider = wallet?.provider || defaultProvider;
@@ -899,13 +914,18 @@ export default function BhoomiApp() {
       if (action === "transfer") {
         let details = null;
         try {
-          details = await registry.getLandDetails(numericLandId);
+          const raw = await registry.getLandDetails(numericLandId);
+          details = parseLandDetails(raw, variant);
         } catch {
           /* Fallback to local record if getLandDetails throws */
         }
 
-        const onChainStatus = details ? Number(details.status ?? details[6] ?? details[4] ?? 0) : 0;
-        const pendingOwnerAddr = details ? String(details.pendingOwner || details[5] || details[3] || "") : "";
+        const onChainStatus = details ? details.status : Number(targetLand?.status || 0);
+        const pendingOwnerAddr = (details && details.pendingOwner) ? details.pendingOwner : (targetLand?.pendingOwner || form.buyer);
+
+        if (!pendingOwnerAddr || pendingOwnerAddr === ethers.ZeroAddress) {
+          throw new Error("No pending purchaser found for this land. Submit a mutation request first.");
+        }
 
         if (onChainStatus === 1) {
           const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
@@ -914,7 +934,7 @@ export default function BhoomiApp() {
           await approveTx.wait();
         }
 
-        const transferSigner = resolveSignerForAddress(pendingOwnerAddr || targetLand?.pendingOwner);
+        const transferSigner = resolveSignerForAddress(pendingOwnerAddr);
 
         try {
           const activeProvider = wallet?.provider || defaultProvider;
