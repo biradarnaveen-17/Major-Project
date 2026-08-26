@@ -822,6 +822,10 @@ export default function BhoomiApp() {
         }
       }
 
+      const landVariant = targetLand?.variant || variant;
+      const landAddress = ADDRESSES[landVariant] || address;
+      const landAbi = landVariant === "base" ? BASE_ABI : OPTIMIZED_ABI;
+
       let tx;
       if (action === "register") {
         const revenueLocation = `${form.village}, ${form.hobli}, ${form.taluk}, ${form.district}`;
@@ -829,7 +833,7 @@ export default function BhoomiApp() {
         const validOwner = (form.owner && ethers.isAddress(form.owner)) ? form.owner : wallet?.account || DEMO_ACCOUNTS.farmer;
 
         const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
-        const authorityRegistry = new ethers.Contract(address, variant === "base" ? BASE_ABI : OPTIMIZED_ABI, authoritySigner);
+        const authorityRegistry = new ethers.Contract(landAddress, landAbi, authoritySigner);
 
         try {
           const isReg = await authorityRegistry.registrars(authoritySigner.address).catch(() => true);
@@ -841,7 +845,7 @@ export default function BhoomiApp() {
           console.warn("Auto-setRegistrar skipped:", regErr.message);
         }
 
-        if (variant === "base") {
+        if (landVariant === "base") {
           tx = await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](numericLandId, validOwner, form.survey, revenueLocation, form.area);
         } else {
           tx = await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](numericLandId, validOwner, metadataHash, form.area);
@@ -860,12 +864,12 @@ export default function BhoomiApp() {
         if (!ethers.isAddress(targetBuyer)) throw new Error("Please select a registered purchaser from the dropdown list.");
 
         const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
-        const authorityRegistry = contract(true, authoritySigner);
+        const authorityRegistry = new ethers.Contract(landAddress, landAbi, authoritySigner);
 
         let details = null;
         try {
-          const raw = await registry.getLandDetails(numericLandId);
-          details = parseLandDetails(raw, variant);
+          const raw = await authorityRegistry.getLandDetails(numericLandId);
+          details = parseLandDetails(raw, landVariant);
         } catch {
           details = null;
         }
@@ -887,12 +891,12 @@ export default function BhoomiApp() {
           } catch { /* Ignore */ }
 
           try {
-            const regTx = variant === "base"
+            const regTx = landVariant === "base"
               ? await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](numericLandId, ownerAddr, surveyNum, loc, areaVal)
               : await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](numericLandId, ownerAddr, metaHash, areaVal);
             await regTx.wait();
             const raw = await authorityRegistry.getLandDetails(numericLandId).catch(() => null);
-            details = parseLandDetails(raw, variant);
+            details = parseLandDetails(raw, landVariant);
           } catch (regErr) {
             console.warn("Auto-register fallback attempt:", regErr.message);
           }
@@ -914,19 +918,21 @@ export default function BhoomiApp() {
           console.warn("Request signer gas funding skipped:", fErr.message);
         }
 
-        const requestRegistry = contract(true, requestSigner);
+        const requestRegistry = new ethers.Contract(landAddress, landAbi, requestSigner);
         tx = await requestRegistry.requestTransfer(numericLandId, targetBuyer);
       }
       if (action === "approve") {
         const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
-        const authorityRegistry = contract(true, authoritySigner);
+        const authorityRegistry = new ethers.Contract(landAddress, landAbi, authoritySigner);
         tx = await authorityRegistry.approveTransfer(numericLandId);
       }
       if (action === "transfer") {
+        const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
+        const authorityRegistry = new ethers.Contract(landAddress, landAbi, authoritySigner);
         let details = null;
         try {
-          const raw = await registry.getLandDetails(numericLandId);
-          details = parseLandDetails(raw, variant);
+          const raw = await authorityRegistry.getLandDetails(numericLandId);
+          details = parseLandDetails(raw, landVariant);
         } catch {
           /* Fallback to local record if getLandDetails throws */
         }
@@ -939,8 +945,6 @@ export default function BhoomiApp() {
         }
 
         if (onChainStatus === 1) {
-          const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
-          const authorityRegistry = contract(true, authoritySigner);
           const approveTx = await authorityRegistry.approveTransfer(numericLandId);
           await approveTx.wait();
         }
@@ -960,7 +964,7 @@ export default function BhoomiApp() {
           console.warn("Transfer signer gas funding skipped:", fErr.message);
         }
 
-        const transferRegistry = contract(true, transferSigner);
+        const transferRegistry = new ethers.Contract(landAddress, landAbi, transferSigner);
         tx = await transferRegistry.transferOwnership(numericLandId);
       }
 
