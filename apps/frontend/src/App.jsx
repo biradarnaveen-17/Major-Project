@@ -285,6 +285,25 @@ export default function BhoomiApp() {
     return list;
   }, [myLandRequests, landRequests, land, wallet, farmer]);
 
+  const allSelectableParcels = useMemo(() => {
+    const list = [...allMyHoldings];
+    const target = selectedLand || land;
+    if (target && target.id) {
+      const targetIdStr = String(target.id);
+      if (!list.some((item) => String(item.landId || item.id.replace("chain-", "")) === targetIdStr)) {
+        const existingReq = (landRequests || []).find((r) => String(r.landId) === targetIdStr);
+        list.unshift({
+          id: `selected-${targetIdStr}`,
+          surveyNumber: target.survey || existingReq?.surveyNumber || "12/3A",
+          village: target.location ? target.location.split(",")[0] : (existingReq?.village || "Jakkur"),
+          landId: targetIdStr,
+          isPendingIncoming: Number(target.status) > 0
+        });
+      }
+    }
+    return list;
+  }, [allMyHoldings, selectedLand, land, landRequests]);
+
   const availablePurchasers = useMemo(() => {
     const currentOwnerAddr = (selectedLand?.owner || land?.owner || "").toLowerCase();
     return (purchasers || []).filter((p) => {
@@ -829,6 +848,7 @@ export default function BhoomiApp() {
       const landAbi = landVariant === "base" ? BASE_ABI : OPTIMIZED_ABI;
 
       let tx;
+      let transferSigner = null;
       if (action === "register") {
         const revenueLocation = `${form.village}, ${form.hobli}, ${form.taluk}, ${form.district}`;
         const metadataHash = ethers.keccak256(ethers.toUtf8Bytes(parcelMetadata(form.survey, form.district, form.taluk, form.hobli, form.village)));
@@ -1069,23 +1089,31 @@ export default function BhoomiApp() {
         setView(session?.user?.role === "officer" ? "agent" : "farmer");
         await loadPortalData();
       } else if (action === "transfer") {
-        const transferOwnerName = resolveName(await transferSigner.getAddress()) || session?.user?.fullName || "New Owner";
+        const finalAddr = transferSigner ? await transferSigner.getAddress() : (session?.user?.walletAddress || form.buyer);
+        const transferOwnerName = resolveName(finalAddr) || session?.user?.fullName || "New Owner";
         setMessage(`Mutation transfer completed successfully! Ownership of Land #${form.landId} is now finalized on-chain under Sri / Smt. ${transferOwnerName} in block ${receipt.blockNumber}. Gas used: ${receipt.gasUsed.toString()}.`);
         await findLand(form.landId);
+        await loadPortalData();
         setView("transfer");
       } else {
         setMessage(`${action} completed in block ${receipt.blockNumber}; gas used: ${receipt.gasUsed.toString()}.`);
         await findLand(form.landId);
+        await loadPortalData();
         setView("transfer");
       }
     } catch (error) {
+      console.error("Submit transaction failed:", error);
       const friendlyError = displayError(error, registry);
       if (action === "register" && friendlyError === errorText.DuplicateRegistration) {
         const freshId = String(Date.now());
         setForm((current) => ({ ...current, landId: freshId }));
         setMessage(`Land ID ${form.landId} is already registered. A fresh ID (${freshId}) has been generated; click Register again.`);
-      } else setMessage(friendlyError);
-    } finally { setBusyAction(null); }
+      } else {
+        setMessage(friendlyError);
+      }
+    } finally {
+      setBusyAction(null);
+    }
   }
 
   async function createDocument(event) {
@@ -1580,11 +1608,17 @@ export default function BhoomiApp() {
 
               <div className="form-grid transfer-fields">
                 <Field label="Active blockchain land ID" value={form.landId} onChange={(e) => { update("landId")(e); findLand(e.target.value); }} placeholder="e.g. 9002" />
-                {allMyHoldings.length > 0 && (
-                  <SelectField label="Select from My Owned Parcels" value={form.landId} onChange={(e) => { update("landId")(e); findLand(e.target.value); }}>
-                    {allMyHoldings.map((item) => (
-                      <option key={item.id} value={item.landId || item.id.replace("chain-", "")}>{item.surveyNumber} ({item.village}) - Land #{item.landId || item.id.replace("chain-", "")}</option>
-                    ))}
+                {allSelectableParcels.length > 0 && (
+                  <SelectField label="Select Registered Land Parcel" value={form.landId} onChange={(e) => { update("landId")(e); findLand(e.target.value); }}>
+                    {allSelectableParcels.map((item) => {
+                      const val = item.landId || item.id.replace("chain-", "").replace("selected-", "");
+                      const prefix = item.isPendingIncoming ? "[Incoming Request]" : "[My Parcel]";
+                      return (
+                        <option key={item.id} value={val}>
+                          {prefix} {item.surveyNumber} ({item.village}) - Land #{val}
+                        </option>
+                      );
+                    })}
                   </SelectField>
                 )}
                 {(!selectedLand || selectedLand.status === 0) && (session?.user?.role !== "officer" && session?.user?.role !== "admin") && (
