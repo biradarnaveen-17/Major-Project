@@ -1,8 +1,9 @@
+const path = require("node:path");
+require("dotenv").config({ path: path.resolve(__dirname, "../../../.env") });
 require("dotenv").config();
 
 const crypto = require("node:crypto");
 const fs = require("node:fs");
-const path = require("node:path");
 const cors = require("cors");
 const express = require("express");
 const helmet = require("helmet");
