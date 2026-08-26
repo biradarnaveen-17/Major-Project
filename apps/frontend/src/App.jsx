@@ -795,6 +795,7 @@ export default function BhoomiApp() {
 
     try {
       const activeProvider = wallet?.provider || defaultProvider;
+      const registry = contract(false);
       const signer = await signerFor(action, targetLand);
 
       if (action !== "approve") {

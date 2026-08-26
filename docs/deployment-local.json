@@ -1,10 +1,10 @@
 {
   "network": "ganache",
   "chainId": 31337,
-  "deployedAt": "2026-08-26T03:59:58.202Z",
+  "deployedAt": "2026-08-26T04:16:08.190Z",
   "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "contracts": {
-    "base": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
-    "optimized": "0x0165878A594ca255338adfa4d48449f69242Eb8F"
+    "base": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
+    "optimized": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82"
   }
 }
