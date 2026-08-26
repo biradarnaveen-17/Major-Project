@@ -1638,7 +1638,7 @@ export default function BhoomiApp() {
               )}
 
               <div className="actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
-                {(!selectedLand || selectedLand.status === 0) && session?.user?.role !== "officer" && session?.user?.role !== "admin" && (
+                {(!selectedLand || (selectedLand.status === 0 && !isCompletedTransfer)) && session?.user?.role !== "officer" && session?.user?.role !== "admin" && (
                   <button
                     type="button"
                     disabled={busyAction !== null || !form.landId}
