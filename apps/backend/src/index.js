@@ -951,13 +951,38 @@ app.patch("/api/land-requests/transfer-owner/:landId", (request, response) => {
   const { newOwnerWallet, newOwnerName } = request.body || {};
   const landIdStr = String(request.params.landId);
   let landRequest = state.landRequests.find((item) => String(item.landId) === landIdStr);
+  
   if (landRequest) {
     if (newOwnerWallet) landRequest.walletAddress = newOwnerWallet;
     if (newOwnerName) landRequest.farmerName = newOwnerName;
-    addAudit({ action: "Ownership mutation transferred", landId: landIdStr, actor: newOwnerName || "Purchaser", detail: `New Khatedar: ${newOwnerName} (${newOwnerWallet})` });
-    saveState();
+  } else {
+    const matchUser = state.users.find((u) => u.walletAddress?.toLowerCase() === String(newOwnerWallet || "").toLowerCase());
+    landRequest = {
+      id: crypto.randomUUID(),
+      landId: landIdStr,
+      farmerId: matchUser ? matchUser.id : "user-transferred",
+      farmerName: newOwnerName || (matchUser ? matchUser.fullName : "New Owner"),
+      email: matchUser ? matchUser.email : "",
+      mobile: matchUser ? matchUser.mobile : "",
+      walletAddress: newOwnerWallet,
+      surveyNumber: `SUR-${landIdStr}`,
+      district: "Bengaluru Urban",
+      taluk: "Bengaluru North",
+      hobli: "Yelahanka",
+      village: "Jakkur",
+      extent: "48",
+      parcelKey: `SUR-${landIdStr}|Jakkur`,
+      status: "Registered on blockchain",
+      createdAt: new Date().toISOString(),
+      verifiedAt: new Date().toISOString(),
+      registeredAt: new Date().toISOString(),
+      transactionHash: "on-chain-transfer"
+    };
+    state.landRequests.unshift(landRequest);
   }
-  return response.json(landRequest || { message: "Ownership transferred." });
+  addAudit({ action: "Ownership mutation transferred", landId: landIdStr, actor: newOwnerName || "Purchaser", detail: `New Khatedar: ${newOwnerName} (${newOwnerWallet})` });
+  saveState();
+  return response.json(landRequest);
 });
 
 app.get("/api/documents", (_request, response) => response.json(state.documents));

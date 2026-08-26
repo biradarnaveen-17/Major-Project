@@ -1133,7 +1133,8 @@ export default function BhoomiApp() {
   }
 
   function chooseVariant(next) { setVariant(next); setAddress(ADDRESSES[next]); setLand(null); }
-  const workflowStage = selectedLand?.status === 2 ? 3 : selectedLand?.status === 1 ? 2 : selectedLand ? 1 : 0;
+  const isCompletedTransfer = selectedLand && selectedLand.status === 0 && selectedLand.history && selectedLand.history.length > 1;
+  const workflowStage = isCompletedTransfer ? 4 : selectedLand?.status === 2 ? 3 : selectedLand?.status === 1 ? 2 : selectedLand ? 1 : 0;
   const primaryAction = session?.user.role === "farmer" ? ["farmer", "Start land request"] : session?.user.role === "officer" ? ["agent", "Open verification desk"] : session?.user.role === "purchaser" ? ["transfer", "Review mutation"] : ["analytics", "Open gas report"];
 
   if (!session) return <LoginScreen onLogin={signIn} />;
@@ -1659,6 +1660,15 @@ export default function BhoomiApp() {
                   >
                     {busyAction === "transfer" ? "Completing..." : "3. Complete Mutation & Finalize Ownership (Purchaser)"}
                   </button>
+                )}
+
+                {isCompletedTransfer && (
+                  <div style={{ width: "100%", background: "#f0fdf4", border: "2px solid #16a34a", padding: "16px", borderRadius: "10px", color: "#15803d" }}>
+                    <strong style={{ fontSize: "1.1rem" }}>✓ Mutation Workflow 100% Finalized on Blockchain</strong>
+                    <p style={{ margin: "6px 0 0 0", fontSize: "0.95rem" }}>
+                      Ownership of Land #{selectedLand.id} is legally finalized under <strong>Sri / Smt. {resolveName(selectedLand.owner)}</strong>. All 3 stages (Mutation Request -&gt; Revenue Verification -&gt; Purchaser Consent) are complete.
+                    </p>
+                  </div>
                 )}
 
                 {selectedLand?.status === 2 && (session?.user?.role === "officer" || session?.user?.role === "admin") && (
