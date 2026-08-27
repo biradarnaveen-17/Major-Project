@@ -59,6 +59,7 @@ export default function BhoomiApp() {
   async function runLoadTest(targetLoads = [10, 100, 500]) {
     try {
       setRunningLoadTest(true);
+      setLoadReport({ generatedAt: new Date().toISOString(), isRealtime: true, loads: [], results: [] });
       setLoadProgress("Connecting to local EVM blockchain...");
       setMessage("Starting real-time EVM workload benchmark...");
 
@@ -153,6 +154,14 @@ export default function BhoomiApp() {
           elapsedMs: baseElapsed
         });
 
+        // Live UI update after Base contract batch completes
+        setLoadReport({
+          generatedAt: new Date().toISOString(),
+          isRealtime: true,
+          loads: targetLoads.slice(0, index + 1),
+          results: [...results]
+        });
+
         // --- 2. Optimized Contract Test ---
         setLoadProgress(`[${results.length + 1}/${totalSteps}] Executing Optimized Contract (${count} txns)...`);
         const optStart = performance.now();
@@ -206,16 +215,16 @@ export default function BhoomiApp() {
           failureRate: Number(((optFailures / (count * 4)) * 100).toFixed(2)),
           elapsedMs: optElapsed
         });
+
+        // Live UI update after Optimized contract batch completes - Columns pop up live on screen!
+        setLoadReport({
+          generatedAt: new Date().toISOString(),
+          isRealtime: true,
+          loads: targetLoads.slice(0, index + 1),
+          results: [...results]
+        });
       }
 
-      const finalReport = {
-        generatedAt: new Date().toISOString(),
-        isRealtime: true,
-        loads: targetLoads,
-        results
-      };
-
-      setLoadReport(finalReport);
       setMessage("Real-time EVM load test completed live on blockchain!");
       appendAudit("Real-Time EVM Load Test", "Scalability", `Executed real-time workloads: ${targetLoads.join(", ")} txns`);
     } catch (error) {
