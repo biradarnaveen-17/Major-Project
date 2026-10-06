@@ -49,7 +49,7 @@ export default function BhoomiApp() {
   const [officerForm, setOfficerForm] = useState({ fullName: "", username: "", email: "", mobile: "" });
   const [pendingRequestId, setPendingRequestId] = useState(null);
   const [documentForm, setDocumentForm] = useState({ landId: "", category: "RTC / Pahani extract", reference: "", hash: "" });
-  const [form, setForm] = useState({ landId: DEFAULT_DEMO_LAND_ID, owner: "", survey: "12/3A", district: "Bengaluru Urban", taluk: "Bengaluru North", hobli: "Yelahanka", village: "Jakkur", area: "48", buyer: "", lookupId: "" });
+  const [form, setForm] = useState({ landId: DEFAULT_DEMO_LAND_ID, owner: "", survey: "12/3A", district: "Bengaluru Urban", taluk: "Bengaluru North", hobli: "Yelahanka", village: "Jakkur", area: "48", lookupId: DEFAULT_DEMO_LAND_ID, buyer: "" });
   const [purchasers, setPurchasers] = useState([]);
   const [purchaserQuery, setPurchaserQuery] = useState("");
   const [loadReport, setLoadReport] = useState(null);
@@ -72,7 +72,6 @@ export default function BhoomiApp() {
       const optContractAdmin = new ethers.Contract(ADDRESSES.optimized, OPTIMIZED_ABI, authorityWallet);
       const optContractBuyer = new ethers.Contract(ADDRESSES.optimized, OPTIMIZED_ABI, buyerWallet);
 
-      // Ensure authority is registrar on BaseLandRegistry and buyer has gas
       try {
         const isBaseReg = await baseContractAdmin.registrars(authorityWallet.address);
         if (!isBaseReg) {
@@ -100,7 +99,6 @@ export default function BhoomiApp() {
         const count = targetLoads[index];
         const batchSize = count > 50 ? 10 : 5;
 
-        // --- 1. Base Contract Test ---
         setLoadProgress(`[${results.length + 1}/${totalSteps}] Executing Base Contract (${count} txns)...`);
         const baseStart = performance.now();
         let baseTotalGas = 0n;
@@ -154,7 +152,6 @@ export default function BhoomiApp() {
           elapsedMs: baseElapsed
         });
 
-        // Live UI update after Base contract batch completes
         setLoadReport({
           generatedAt: new Date().toISOString(),
           isRealtime: true,
@@ -162,7 +159,6 @@ export default function BhoomiApp() {
           results: [...results]
         });
 
-        // --- 2. Optimized Contract Test ---
         setLoadProgress(`[${results.length + 1}/${totalSteps}] Executing Optimized Contract (${count} txns)...`);
         const optStart = performance.now();
         let optTotalGas = 0n;
@@ -216,7 +212,6 @@ export default function BhoomiApp() {
           elapsedMs: optElapsed
         });
 
-        // Live UI update after Optimized contract batch completes - Columns pop up live on screen!
         setLoadReport({
           generatedAt: new Date().toISOString(),
           isRealtime: true,
@@ -246,7 +241,7 @@ export default function BhoomiApp() {
   const selectedLand = land?.id === String(form.landId) ? land : null;
   const currentAccount = wallet?.account?.toLowerCase();
   const portal = session ? (PORTALS[session.user.role] || PORTALS.farmer) : PORTALS.farmer;
-  const accountRole = session ? (session.user.role === "officer" ? "Revenue Officer" : session.user.role === "admin" ? "System Administrator" : session.user.role === "purchaser" ? "Purchaser" : "Farmer") : "Guest";
+  const accountRole = session ? (session.user.role === "officer" ? "Revenue Officer" : session.user.role === "admin" ? "System Administrator" : session.user.role === "purchaser" ? "Purchaser" : "Farmer") : "Citizen";
   const visibleNav = portal ? NAV.filter(([id]) => portal.views.includes(id)) : [];
 
   const myLandRequests = farmer
@@ -263,7 +258,7 @@ export default function BhoomiApp() {
   const allMyHoldings = useMemo(() => {
     const currentAccount = wallet?.account?.toLowerCase();
     const transferredList = JSON.parse(localStorage.getItem("bhoomi_transferred_lands") || "[]");
-    
+
     const list = landRequests.filter((item) => {
       const ownerWallet = (item.walletAddress || "").toLowerCase();
       if (ownerWallet && currentAccount && ownerWallet !== currentAccount) return false;
@@ -363,7 +358,7 @@ export default function BhoomiApp() {
   }
 
   async function loadPortalData() {
-    const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult, loadResult] = await Promise.allSettled([api("/api/dashboard"), api("/api/documents"), api("/api/audit"), api("/api/benchmarks/latest"), api("/api/land-requests"), api("/api/purchasers"), api("/api/benchmarks/loads")]);
+    const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult, loadResult] = await Promise.allSettled([api("/api/dashboard"), api("/api/documents"), api("/api/audit"), api("/api/reports"), api("/api/land-requests"), api("/api/purchasers"), api("/api/load-report")]);
     if (dashboardResult.status === "fulfilled") setPortalStats(dashboardResult.value);
     if (documentResult.status === "fulfilled") setDocuments(documentResult.value);
     if (auditResult.status === "fulfilled") setAudit(auditResult.value);
@@ -374,18 +369,27 @@ export default function BhoomiApp() {
   }
 
   async function refreshAppData() {
-  const tasks = [loadPortalData()];
+    const tasks = [loadPortalData()];
 
-  if (session?.user?.role === "admin") {
-    tasks.push(loadAllUsers());
-    tasks.push(loadOfficers());
+    if (session?.user?.role === "admin") {
+      tasks.push(loadAllUsers());
+      tasks.push(loadOfficers());
+    }
+
+    await Promise.allSettled(tasks);
   }
 
-  await Promise.allSettled(tasks);
-}
-
   async function appendAudit(action, landId, detail) {
-    try { const entry = await api("/api/audit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, landId, actor: accountRole, detail }) }); setAudit((current) => [entry, ...current]); } catch { /* Optional audit API error swallow */ }
+    try {
+      const entry = await api("/api/audit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, landId, actor: accountRole, detail })
+      });
+      setAudit((current) => [entry, ...current].slice(0, 50));
+    } catch (error) {
+      console.warn("Audit write failed:", error.message);
+    }
   }
 
   const loadAllUsers = useCallback(async () => {
@@ -416,7 +420,7 @@ export default function BhoomiApp() {
         body: JSON.stringify({ status: nextStatus })
       });
       setMessage(res.message);
-await refreshAppData();
+      await refreshAppData();
     } catch (err) {
       setMessage(err.message);
     }
@@ -427,8 +431,7 @@ await refreshAppData();
     try {
       const res = await api(`/api/admin/users/${userId}`, { method: "DELETE" });
       setMessage(res.message);
-      loadAllUsers();
-      loadOfficers();
+      await refreshAppData();
     } catch (err) {
       setMessage(err.message);
     }
@@ -441,9 +444,7 @@ await refreshAppData();
       setMessage(res.message || "Database reset successfully.");
       localStorage.removeItem("bhoomi_transferred_lands");
       localStorage.removeItem("bhoomi_active_land_id");
-      loadAllUsers();
-      loadOfficers();
-      loadPortalData();
+      await refreshAppData();
     } catch (err) {
       setMessage(err.message);
     }
@@ -457,8 +458,24 @@ await refreshAppData();
   async function createOfficer(event) {
     event.preventDefault();
     try {
-      const result = await api("/api/admin/officers", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${session.token}` }, body: JSON.stringify(officerForm) });
-      setOfficers((current) => [result.officer, ...current]); setOfficerForm({ fullName: "", username: "", email: "", mobile: "" }); setMessage(`Revenue Officer account created for ${result.officer.fullName}.`);
+      const result = await api("/api/admin/officers", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${session.token}` },
+        body: JSON.stringify(officerForm)
+      });
+
+      setOfficers((current) => [result.officer, ...current]);
+
+      setOfficerForm({
+        fullName: "",
+        username: "",
+        email: "",
+        mobile: ""
+      });
+
+      setMessage(`Revenue Officer account created for ${result.officer.fullName}.`);
+
+      await refreshAppData();
     } catch (error) { setMessage(error.message); }
   }
 
@@ -467,8 +484,7 @@ await refreshAppData();
     try {
       const res = await api(`/api/admin/officers/${id}`, { method: "DELETE", headers: { authorization: `Bearer ${session.token}` } });
       setMessage(res.message || "Officer account deleted.");
-      loadOfficers();
-      loadPortalData();
+      await refreshAppData();
     } catch (error) { setMessage(error.message); }
   }
 
@@ -483,7 +499,7 @@ await refreshAppData();
         network = await localProvider.getNetwork();
       }
       const chainId = Number(network?.chainId || 31337);
-      
+
       let account;
       let privateKey;
 
@@ -496,7 +512,7 @@ await refreshAppData();
       }
 
       const signer = new ethers.Wallet(privateKey, localProvider);
-      
+
       try {
         const balance = await localProvider.getBalance(account);
         if (balance < ethers.parseEther("0.1")) {
@@ -517,89 +533,81 @@ await refreshAppData();
     } catch (error) { setMessage(error.shortMessage || error.message); }
   }
 
-async function signIn(authResult, options = {}) {
-  const role = authResult.user.role || "citizen";
-  const portalRole = PORTALS[role] ? role : "citizen";
+  async function signIn(authResult, options = {}) {
+    const role = authResult.user.role || "citizen";
+    const portalRole = PORTALS[role] ? role : "citizen";
 
-  // Restore the page the user was on before refresh
-  const savedView = options.restoreView
-    ? sessionStorage.getItem("bhoomichain_view")
-    : null;
+    const savedView = options.restoreView ? sessionStorage.getItem("bhoomichain_view") : null;
 
-  const nextView =
-    savedView && PORTALS[portalRole].views.includes(savedView)
-      ? savedView
-      : PORTALS[portalRole].defaultView;
+    const nextView =
+      savedView && PORTALS[portalRole].views.includes(savedView)
+        ? savedView
+        : PORTALS[portalRole].defaultView;
 
-  // Sign in immediately — don't wait for blockchain
-  setSession({
-    ...authResult,
-    signedInAt: new Date().toISOString()
-  });
-
-  sessionStorage.setItem(
-    "bhoomichain_session",
-    JSON.stringify(authResult)
-  );
-
-  setView(nextView);
-  sessionStorage.setItem("bhoomichain_view", nextView);
-
-  window.location.hash = `/${portalRole}/${nextView}`;
-
-  // Initialize blockchain in background
-  useDemoAccount(PORTALS[portalRole].account, authResult.user)
-    .catch((error) => {
-      console.warn(
-        "Background blockchain initialization:",
-        error.message
-      );
+    setSession({
+      ...authResult,
+      signedInAt: new Date().toISOString()
     });
 
-  // Load farmer information in background
-  if (["citizen", "farmer", "purchaser"].includes(role)) {
-    const activeWallet =
-      authResult.user.username === "sudeep"
-        ? "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-        : authResult.user.username === "raj" ||
-          authResult.user.username === "boss"
-        ? "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
-        : role === "farmer"
-        ? DEMO_ACCOUNTS.farmer
-        : DEMO_ACCOUNTS.buyer;
+    sessionStorage.setItem("bhoomichain_session", JSON.stringify(authResult));
 
-    setFarmer({
-      id: authResult.user.id,
-      name: authResult.user.fullName,
-      email: authResult.user.email,
-      mobile: authResult.user.mobile,
-      walletAddress: activeWallet,
-      verified: true
+    setView(nextView);
+    sessionStorage.setItem("bhoomichain_view", nextView);
+
+    window.location.hash = `/${portalRole}/${nextView}`;
+
+    useDemoAccount(PORTALS[portalRole].account, authResult.user).catch((error) => {
+      console.warn("Background blockchain initialization:", error.message);
     });
 
-    api(
-      `/api/farmers?email=${encodeURIComponent(authResult.user.email)}`
-    )
-      .then((savedFarmers) => {
-        if (savedFarmers[0]) {
-          setFarmer((prev) => ({
-            ...prev,
-            ...savedFarmers[0],
-            walletAddress: activeWallet
-          }));
-        }
-      })
-      .catch(() => {});
+    if (["citizen", "farmer", "purchaser"].includes(role)) {
+      const activeWallet =
+        authResult.user.username === "sudeep"
+          ? "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+          : authResult.user.username === "raj" || authResult.user.username === "boss"
+          ? "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+          : role === "farmer"
+          ? DEMO_ACCOUNTS.farmer
+          : DEMO_ACCOUNTS.buyer;
+
+      setFarmer({
+        id: authResult.user.id,
+        name: authResult.user.fullName,
+        email: authResult.user.email,
+        mobile: authResult.user.mobile,
+        walletAddress: activeWallet,
+        verified: true
+      });
+
+      api(`/api/farmers?email=${encodeURIComponent(authResult.user.email)}`)
+        .then((savedFarmers) => {
+          if (savedFarmers[0]) {
+            setFarmer((prev) => ({
+              ...prev,
+              ...savedFarmers[0],
+              walletAddress: activeWallet
+            }));
+          }
+        })
+        .catch(() => {});
+    }
+
+    if (role === "admin") {
+      loadOfficers(authResult.token).catch(() => {});
+    }
   }
 
-  // Admin data in background
-  if (role === "admin") {
-    loadOfficers(authResult.token).catch(() => {});
-  }
-}
   function signOut() {
-  sessionStorage.removeItem("bhoomichain_session");
-  sessionStorage.removeItem("bhoomichain_view"); setSession(null); setWallet(null); setIsRegistrar(null); setFarmer(null); setOfficers([]); setView("overview"); setMessage("Choose a portal to continue."); }
+    sessionStorage.removeItem("bhoomichain_session");
+    sessionStorage.removeItem("bhoomichain_view");
+    setSession(null);
+    setWallet(null);
+    setIsRegistrar(null);
+    setFarmer(null);
+    setOfficers([]);
+    setView("overview");
+    setMessage("Choose a portal to continue.");
+  }
 
   function resolveName(addr) {
     if (!addr || addr === ethers.ZeroAddress) return "None";
@@ -628,8 +636,6 @@ async function signIn(authResult, options = {}) {
     loadPortalData();
   }, [view, session]);
 
-
-
   useEffect(() => {
     loadPortalData();
     const savedSession = sessionStorage.getItem("bhoomichain_session");
@@ -637,18 +643,18 @@ async function signIn(authResult, options = {}) {
       try {
         const parsed = JSON.parse(savedSession);
         if (parsed?.user?.role) {
-         signIn(parsed, { restoreView: true });
-    }
+          signIn(parsed, { restoreView: true });
+        }
       } catch { sessionStorage.removeItem("bhoomichain_session"); }
     }
   }, []);
 
   useEffect(() => { if (portal && !portal.views.includes(view)) setView(portal.defaultView); }, [portal, view]);
   useEffect(() => {
-  if (session?.user?.role && portal?.views?.includes(view)) {
-    sessionStorage.setItem("bhoomichain_view", view);
-  }
-}, [session, portal, view]);
+    if (session?.user?.role && portal?.views?.includes(view)) {
+      sessionStorage.setItem("bhoomichain_view", view);
+    }
+  }, [session, portal, view]);
 
   useEffect(() => {
     let active = true;
@@ -667,7 +673,9 @@ async function signIn(authResult, options = {}) {
         }
       }
     };
-    refresh(); const interval = setInterval(refresh, 5000); return () => { active = false; clearInterval(interval); };
+    refresh();
+    const interval = setInterval(refresh, 5000);
+    return () => { active = false; clearInterval(interval); };
   }, []);
 
   useEffect(() => {
@@ -992,7 +1000,7 @@ async function signIn(authResult, options = {}) {
           const areaVal = targetLand?.area || form.area || "48";
           const uniqueParcelKey = `${surveyNum}-${numericLandId}`;
           const metaHash = ethers.keccak256(ethers.toUtf8Bytes(parcelMetadata(uniqueParcelKey, form.district, form.taluk, form.hobli, form.village)));
-          
+
           try {
             const isReg = await authorityRegistry.registrars(authoritySigner.address).catch(() => true);
             if (!isReg) {
@@ -1083,7 +1091,7 @@ async function signIn(authResult, options = {}) {
           await approveTx.wait();
         }
 
-        const transferSigner = resolveSignerForAddress(pendingOwnerAddr);
+        transferSigner = resolveSignerForAddress(pendingOwnerAddr);
 
         try {
           const activeProvider = wallet?.provider || defaultProvider;
@@ -1102,7 +1110,8 @@ async function signIn(authResult, options = {}) {
         tx = await transferRegistry.transferOwnership(numericLandId);
       }
 
-      const receipt = await tx.wait(); const gasPrice = receipt.gasPrice || 0n;
+      const receipt = await tx.wait();
+      const gasPrice = receipt.gasPrice || 0n;
       const newGas = Number(receipt.gasUsed);
       const opName = action === "request" ? "requestTransfer" : action === "approve" ? "approveTransfer" : action === "transfer" ? "transferOwnership" : action === "register" ? "registerLand" : action;
       setLiveTransactions((current) => [
@@ -1138,7 +1147,7 @@ async function signIn(authResult, options = {}) {
       if (action === "transfer") {
         try {
           const newOwnerWallet = await transferSigner.getAddress();
-          const newOwnerName = (registeredFarmers || []).find((f) => f.walletAddress?.toLowerCase() === newOwnerWallet.toLowerCase())?.name || shortAddress(newOwnerWallet);
+          const newOwnerName = (purchasers || []).find((f) => f.walletAddress?.toLowerCase() === newOwnerWallet.toLowerCase())?.fullName || shortAddress(newOwnerWallet);
           const existingMeta = (landRequests || []).find((r) => String(r.landId) === String(form.landId));
           await api(`/api/land-requests/transfer-owner/${form.landId}`, {
             method: "PATCH",
@@ -1159,36 +1168,36 @@ async function signIn(authResult, options = {}) {
             savedOwned.push(String(form.landId));
             localStorage.setItem("bhoomi_transferred_lands", JSON.stringify(savedOwned));
           }
-          await loadPortalData();
+          await refreshAppData();
         } catch (e) {
           console.warn("Transfer owner sync skipped:", e.message);
         }
       }
       if (action === "register" && pendingRequestId) {
         try {
-          const registeredRequest = await api(`/api/land-requests/${pendingRequestId}/registered`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ landId: form.landId, transactionHash: tx.hash }) });
+          const registeredRequest = await api(`/api/land-requests/${pendingRequestId}/registered`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ landId: form.landId, owner: form.owner || wallet?.account || DEMO_ACCOUNTS.farmer }) });
           setLandRequests((current) => current.map((item) => item.id === registeredRequest.id ? registeredRequest : item));
           setPendingRequestId(null);
         } catch (requestError) { setMessage(`Blockchain registration succeeded, but the local request status needs refresh: ${requestError.message}`); }
       }
       await appendAudit(`${action[0].toUpperCase()}${action.slice(1)} transaction confirmed`, form.landId, `${receipt.gasUsed.toString()} gas | ${tx.hash}`);
-      
+
       if (action === "register") {
         setMessage(`Land ID #${form.landId} registered on blockchain in block ${receipt.blockNumber}! Gas used: ${receipt.gasUsed.toString()}.`);
         await findLand(form.landId);
         setView(session?.user?.role === "officer" ? "agent" : "farmer");
-        await loadPortalData();
+        await refreshAppData();
       } else if (action === "transfer") {
         const finalAddr = transferSigner ? await transferSigner.getAddress() : (session?.user?.walletAddress || form.buyer);
         const transferOwnerName = resolveName(finalAddr) || session?.user?.fullName || "New Owner";
         setMessage(`Mutation transfer completed successfully! Ownership of Land #${form.landId} is now finalized on-chain under Sri / Smt. ${transferOwnerName} in block ${receipt.blockNumber}. Gas used: ${receipt.gasUsed.toString()}.`);
         await findLand(form.landId);
-        await loadPortalData();
+        await refreshAppData();
         setView("transfer");
       } else {
         setMessage(`${action} completed in block ${receipt.blockNumber}; gas used: ${receipt.gasUsed.toString()}.`);
         await findLand(form.landId);
-        await loadPortalData();
+        await refreshAppData();
         setView("transfer");
       }
     } catch (error) {
@@ -1208,8 +1217,7 @@ async function signIn(authResult, options = {}) {
 
   async function createDocument(event) {
     event.preventDefault();
-    try { const item = await api("/api/documents", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(documentForm) }); setDocuments((current) => [item, ...current]); setDocumentForm((current) => ({ ...current, reference: "", hash: "" })); setMessage("Document reference saved for registrar review.");
-await refreshAppData(); } catch (error) { setMessage(error.message); }
+    try { const item = await api("/api/documents", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(documentForm) }); setDocuments((current) => [item, ...current]); setMessage("Document reference submitted for verification."); await refreshAppData(); } catch (error) { setMessage(error.message); }
   }
 
   async function submitLandRequest(event) {
@@ -1248,7 +1256,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
       setLandRequests((current) => [request, ...current]);
       setMessage(`Land-registration request for Survey #${form.survey} (${form.village}) submitted to the Revenue Officer desk.`);
       setView("farmer");
-      loadPortalData();
+      await refreshAppData();
     } catch (error) { setMessage(error.message); }
   }
 
@@ -1257,7 +1265,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
       const request = await api(`/api/land-requests/${id}/verify`, { method: "PATCH" });
       setLandRequests((current) => current.map((item) => item.id === id ? request : item));
       setMessage("Revenue details verified. The request is ready for blockchain registration.");
-      loadPortalData();
+      await refreshAppData();
     } catch (error) { setMessage(error.message); }
   }
 
@@ -1272,7 +1280,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
       });
       setLandRequests((current) => current.map((item) => item.id === id ? request : item));
       setMessage(`Land-registration request for Survey #${request.surveyNumber} rejected by Revenue Officer.`);
-      loadPortalData();
+      await refreshAppData();
     } catch (error) { setMessage(error.message); }
   }
 
@@ -1297,13 +1305,13 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
   }
 
   async function verifyDocument(id) {
-    try { const item = await api(`/api/documents/${id}/verify`, { method: "PATCH" }); setDocuments((current) => current.map((document) => document.id === id ? item : document)); setMessage("Document verified and added to the audit trail."); loadPortalData(); } catch (error) { setMessage(error.message); }
+    try { const item = await api(`/api/documents/${id}/verify`, { method: "PATCH" }); setDocuments((current) => current.map((document) => document.id === id ? item : document)); setMessage("Document verified successfully."); await refreshAppData(); } catch (error) { setMessage(error.message); }
   }
 
   function chooseVariant(next) { setVariant(next); setAddress(ADDRESSES[next]); setLand(null); }
   const isCompletedTransfer = selectedLand && selectedLand.status === 0 && selectedLand.history && selectedLand.history.length > 1;
   const workflowStage = isCompletedTransfer ? 4 : selectedLand?.status === 2 ? 3 : selectedLand?.status === 1 ? 2 : selectedLand ? 1 : 0;
-  const primaryAction = session?.user.role === "farmer" ? ["farmer", "Start land request"] : session?.user.role === "officer" ? ["agent", "Open verification desk"] : session?.user.role === "purchaser" ? ["transfer", "Review mutation"] : ["analytics", "Open gas report"];
+  const primaryAction = session?.user.role === "farmer" ? ["farmer", "Start land request"] : session?.user.role === "officer" ? ["agent", "Open verification desk"] : session?.user.role === "purchaser" ? ["transfer", "Open mutation desk"] : ["overview", "Open overview"];
 
   if (!session) return <LoginScreen onLogin={signIn} />;
 
@@ -1320,10 +1328,10 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
         <nav>
           {visibleNav.map(([id, label], index) => (
             <button key={id} className={view === id ? "nav-item active" : "nav-item"} onClick={() => {
-  setView(id);
-  sessionStorage.setItem("bhoomichain_view", id);
-  window.location.hash = `/${session?.user?.role || "citizen"}/${id}`;
-}}>
+              setView(id);
+              sessionStorage.setItem("bhoomichain_view", id);
+              window.location.hash = `/${session?.user?.role || "citizen"}/${id}`;
+            }}>
               <span>0{index + 1}</span>{label}
             </button>
           ))}
@@ -1434,68 +1442,55 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
           <section className="page-grid documents">
             <Card title="Authenticated farmer identity" action={<button type="button" className="small-button" onClick={() => setShowEmailChangeModal(true)}>Change Email ID</button>}>
               <Pill tone="success">Email-code verified</Pill>
-              <p style={{ marginTop: "8px" }}><strong>{session.user.fullName}</strong> | username: {session.user.username} | {session.user.email} | mobile ending {session.user.mobile ? session.user.mobile.slice(-4) : "0000"} | Aadhaar ending {session.user.aadhaarLast4 || "0000"}</p>
+              <p style={{ marginTop: "8px" }}><strong>{session.user.fullName}</strong> | username: {session.user.username} | {session.user.email} | mobile ending {session.user.mobile ? session.user.mobile.slice(-4) : "0000"}</p>
               <p className="hint">Identity registration and email-code verification were completed before access to this portal. Aadhaar remains off-chain as a secure hash.</p>
             </Card>
             <Card title="Submit land-registration request">
               <form onSubmit={submitLandRequest}>
                 <div className="form-grid">
                   <Field label="Survey number" value={form.survey} onChange={update("survey")} placeholder="e.g. 12/3A" />
-                  
-                  <SelectField
-                    label="District"
-                    value={form.district}
-                    onChange={(e) => {
-                      const selectedDist = e.target.value;
-                      const taluks = Object.keys(KARNATAKA_REVENUE_HIERARCHY[selectedDist] || {});
-                      const firstTaluk = taluks[0] || "";
-                      const hoblis = KARNATAKA_REVENUE_HIERARCHY[selectedDist]?.[firstTaluk] || [];
-                      const firstHobli = hoblis[0] || "";
+                  <SelectField label="District" value={form.district} onChange={(e) => {
+                    const selectedDist = e.target.value;
+                    const taluks = Object.keys(KARNATAKA_REVENUE_HIERARCHY[selectedDist] || {});
+                    const firstTaluk = taluks[0] || "";
+                    const hoblis = KARNATAKA_REVENUE_HIERARCHY[selectedDist]?.[firstTaluk] || [];
+                    const firstHobli = hoblis[0] || "";
 
-                      setForm((curr) => ({
-                        ...curr,
-                        district: selectedDist,
-                        taluk: firstTaluk,
-                        hobli: firstHobli
-                      }));
-                    }}
-                  >
+                    setForm((curr) => ({
+                      ...curr,
+                      district: selectedDist,
+                      taluk: firstTaluk,
+                      hobli: firstHobli
+                    }));
+                  }}>
                     {Object.keys(KARNATAKA_REVENUE_HIERARCHY).map((dist) => (
                       <option key={dist} value={dist}>{dist}</option>
                     ))}
                   </SelectField>
 
-                  <SelectField
-                    label="Taluk"
-                    value={form.taluk}
-                    onChange={(e) => {
-                      const selectedTaluk = e.target.value;
-                      const hoblis = KARNATAKA_REVENUE_HIERARCHY[form.district]?.[selectedTaluk] || [];
-                      const firstHobli = hoblis[0] || "";
+                  <SelectField label="Taluk" value={form.taluk} onChange={(e) => {
+                    const selectedTaluk = e.target.value;
+                    const hoblis = KARNATAKA_REVENUE_HIERARCHY[form.district]?.[selectedTaluk] || [];
+                    const firstHobli = hoblis[0] || "";
 
-                      setForm((curr) => ({
-                        ...curr,
-                        taluk: selectedTaluk,
-                        hobli: firstHobli
-                      }));
-                    }}
-                  >
+                    setForm((curr) => ({
+                      ...curr,
+                      taluk: selectedTaluk,
+                      hobli: firstHobli
+                    }));
+                  }}>
                     {Object.keys(KARNATAKA_REVENUE_HIERARCHY[form.district] || {}).map((t) => (
                       <option key={t} value={t}>{t}</option>
                     ))}
                   </SelectField>
 
-                  <SelectField
-                    label="Hobli"
-                    value={form.hobli}
-                    onChange={(e) => {
-                      const selectedHobli = e.target.value;
-                      setForm((curr) => ({
-                        ...curr,
-                        hobli: selectedHobli
-                      }));
-                    }}
-                  >
+                  <SelectField label="Hobli" value={form.hobli} onChange={(e) => {
+                    const selectedHobli = e.target.value;
+                    setForm((curr) => ({
+                      ...curr,
+                      hobli: selectedHobli
+                    }));
+                  }}>
                     {(KARNATAKA_REVENUE_HIERARCHY[form.district]?.[form.taluk] || []).map((h) => (
                       <option key={h} value={h}>{h}</option>
                     ))}
@@ -1539,7 +1534,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                           <button className="small-button" onClick={async (e) => {
                             e.preventDefault();
                             const found = await findLand(request.landId).catch(() => null);
-                            setCertificateLand({ id: String(request.landId), survey: request.surveyNumber, location: `${request.village}, ${request.hobli}, ${request.taluk}, ${request.district}`, area: request.extent, owner: request.walletAddress || DEMO_ACCOUNTS.farmer, status: 0, history: [request.walletAddress || DEMO_ACCOUNTS.farmer], ...(found || {}) });
+                            setCertificateLand({ id: String(request.landId), survey: request.surveyNumber, location: `${request.village}, ${request.hobli}, ${request.taluk}, ${request.district}`, area: request.extent, owner: request.walletAddress || wallet?.account, status: 0, history: [request.walletAddress || wallet?.account] });
                           }}>View Certificate</button>
                         </div>
                       ) : request.status === "Verified" ? (
@@ -1609,7 +1604,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                           <button className="small-button" onClick={async (e) => {
                             e.preventDefault();
                             const found = await findLand(request.landId).catch(() => null);
-                            setCertificateLand({ id: String(request.landId), survey: request.surveyNumber, location: `${request.village}, ${request.hobli}, ${request.taluk}, ${request.district}`, area: request.extent, owner: request.walletAddress || DEMO_ACCOUNTS.farmer, status: 0, history: [request.walletAddress || DEMO_ACCOUNTS.farmer], ...(found || {}) });
+                            setCertificateLand({ id: String(request.landId), survey: request.surveyNumber, location: `${request.village}, ${request.hobli}, ${request.taluk}, ${request.district}`, area: request.extent, owner: request.walletAddress || wallet?.account, status: 0, history: [request.walletAddress || wallet?.account] });
                           }}>Issue RTC</button>
                         </div>
                       )}
@@ -1655,15 +1650,8 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                 <Field label="Village" value={form.village} onChange={update("village")} />
                 <Field label="Extent (gunta)" type="number" min="1" value={form.area} onChange={update("area")} />
               </div>
-              <p className="hint">1 acre = 40 gunta. Land IDs must be unique. The optimized registry saves a deterministic hash of survey and revenue-location data; the reference registry stores it as readable metadata.</p>
-              <button
-                type="button"
-                disabled={busyAction !== null}
-                onClick={(e) => {
-                  e.preventDefault();
-                  submit("register");
-                }}
-              >
+              <p className="hint">1 acre = 40 gunta. Land IDs must be unique. The optimized registry saves a deterministic hash of survey and revenue-location data; the reference registry stores it as plain strings.</p>
+              <button type="button" disabled={busyAction !== null} onClick={(e) => { e.preventDefault(); submit("register"); }}>
                 {busyAction === "register" ? "Recording in blockchain..." : pendingRequestId ? "Register verified request on blockchain" : "Register land record"}
               </button>
             </Card>
@@ -1718,12 +1706,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                 )}
                 {(!selectedLand || selectedLand.status === 0) && (session?.user?.role !== "officer" && session?.user?.role !== "admin") && (
                   <div style={{ display: "grid", gap: "10px", gridColumn: "1 / -1", background: "#f8fafc", padding: "14px", borderRadius: "10px", border: "1px solid #cbd5e1", margin: "6px 0" }}>
-                    <Field
-                      label="Instant Purchaser Search (Type Name or Username)"
-                      placeholder="Type name or username to search (e.g. sudeep, raj, hemant)..."
-                      value={purchaserQuery}
-                      onChange={(e) => setPurchaserQuery(e.target.value)}
-                    />
+                    <Field label="Instant Purchaser Search (Type Name or Username)" placeholder="Type name or username to search (e.g. sudeep, raj, hemant)..." value={purchaserQuery} onChange={(e) => setPurchaserQuery(e.target.value)} />
 
                     {purchaserQuery.trim() !== "" && (
                       <div style={{ display: "grid", gap: "6px" }}>
@@ -1753,7 +1736,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                                   setForm((curr) => ({ ...curr, buyer: p.walletAddress }));
                                 }}
                               >
-                                {isSelected ? "" : ""}{p.fullName} (@{p.username})
+                                {p.fullName} (@{p.username})
                               </button>
                             );
                           })}
@@ -1779,7 +1762,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                   <div style={{ gridColumn: "1 / -1", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "14px", borderRadius: "8px", color: "#1e40af" }}>
                     <strong>Revenue Officer Notice: Awaiting Owner Nomination</strong>
                     <p style={{ margin: "4px 0 0 0", fontSize: "0.9rem" }}>
-                      The recorded Khatedar / Owner ({selectedLand ? `Sri / Smt. ${resolveName(selectedLand.owner)}` : "Land Owner"}) must sign in to nominate a purchaser and submit the mutation request. As a Revenue Officer, your role is to verify and approve mutation requests once submitted by land owners.
+                      The recorded Khatedar / Owner ({selectedLand ? `Sri / Smt. ${resolveName(selectedLand.owner)}` : "Land Owner"}) must sign in to nominate a purchaser and submit the mutation request before final transfer can be completed.
                     </p>
                   </div>
                 )}
@@ -1787,10 +1770,10 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
 
               {selectedLand ? (
                 <div className="record" style={{ margin: "14px 0", background: "#fffaf2", padding: "14px", borderRadius: "8px", border: "1px solid #e4d2ae" }}>
-                  <div className="record-head" style={{ marginBottom: "8px" }}><strong style={{ fontSize: "1.05rem", color: "#1e3a8a" }}>Selected Land Record #{selectedLand.id}</strong><Pill tone={selectedLand.status === 0 ? "success" : "warning"}>{statusText[selectedLand.status] || "Registered"}</Pill></div>
+                  <div className="record-head" style={{ marginBottom: "8px" }}><strong style={{ fontSize: "1.05rem", color: "#1e3a8a" }}>Selected Land Record #{selectedLand.id}</strong><Pill tone={selectedLand.status === 0 ? "success" : "warning"}>{statusText[selectedLand.status]}</Pill></div>
                   <dl style={{ margin: 0 }}>
                     <dt>Current Khatedar / Owner</dt><dd><strong> Sri / Smt. {resolveName(selectedLand.owner)}</strong> ({shortAddress(selectedLand.owner)})</dd>
-                    <dt>Nominated Purchaser</dt><dd>{selectedLand.pendingOwner && selectedLand.pendingOwner !== ethers.ZeroAddress ? `${resolveName(selectedLand.pendingOwner)} (${shortAddress(selectedLand.pendingOwner)})` : "None nominated"}</dd>
+                    <dt>Nominated Purchaser</dt><dd>{selectedLand.pendingOwner && selectedLand.pendingOwner !== ethers.ZeroAddress ? `${resolveName(selectedLand.pendingOwner)} (${shortAddress(selectedLand.pendingOwner)})` : "None"}</dd>
                     <dt>Extent (Area)</dt><dd>{selectedLand.area} Gunta</dd>
                   </dl>
                 </div>
@@ -1802,23 +1785,13 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
 
               <div className="actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
                 {(!selectedLand || selectedLand.status === 0) && session?.user?.role !== "officer" && session?.user?.role !== "admin" && (
-                  <button
-                    type="button"
-                    disabled={busyAction !== null || !form.landId}
-                    onClick={() => submit("request")}
-                    style={{ background: "#991b1b", color: "#fff", padding: "12px 20px", fontWeight: "bold" }}
-                  >
+                  <button type="button" disabled={busyAction !== null || !form.landId} onClick={() => submit("request")} style={{ background: "#991b1b", color: "#fff", padding: "12px 20px", fontWeight: "bold" }}>
                     {busyAction === "request" ? "Submitting request..." : "1. Submit Mutation Request (Owner)"}
                   </button>
                 )}
 
                 {selectedLand?.status === 1 && (session?.user?.role === "officer" || session?.user?.role === "admin") && (
-                  <button
-                    type="button"
-                    disabled={busyAction !== null || !selectedLand}
-                    onClick={() => submit("approve")}
-                    style={{ background: "#701a75", color: "#fff", padding: "12px 20px", fontWeight: "bold" }}
-                  >
+                  <button type="button" disabled={busyAction !== null || !selectedLand} onClick={() => submit("approve")} style={{ background: "#701a75", color: "#fff", padding: "12px 20px", fontWeight: "bold" }}>
                     {busyAction === "approve" ? "Approving..." : "2. Verify & Approve Mutation (Revenue Officer)"}
                   </button>
                 )}
@@ -1830,12 +1803,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                 )}
 
                 {selectedLand?.status === 2 && session?.user?.role !== "officer" && session?.user?.role !== "admin" && (
-                  <button
-                    type="button"
-                    disabled={busyAction !== null || !selectedLand}
-                    onClick={() => submit("transfer")}
-                    style={{ background: "#15803d", color: "#fff", padding: "12px 20px", fontWeight: "bold" }}
-                  >
+                  <button type="button" disabled={busyAction !== null || !selectedLand} onClick={() => submit("transfer")} style={{ background: "#15803d", color: "#fff", padding: "12px 20px", fontWeight: "bold" }}>
                     {busyAction === "transfer" ? "Completing..." : "3. Complete Mutation & Finalize Ownership (Purchaser)"}
                   </button>
                 )}
@@ -1855,7 +1823,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                   </div>
                 )}
               </div>
-              <p className="hint" style={{ marginTop: "12px" }}>Select a land parcel and registered purchaser, then click <strong>Submit mutation request</strong>. Revenue Officers verify requests, and purchasers click <strong>Accept ownership</strong> to complete the transfer.</p>
+              <p className="hint" style={{ marginTop: "12px" }}>Select a land parcel and registered purchaser, then click <strong>Submit mutation request</strong>. Revenue Officers verify requests, and the nominated purchaser finalizes the transfer on-chain.</p>
             </Card>
 
             <Card title="Mutation safeguards">
@@ -1875,7 +1843,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                       <Pill tone="purple">{item.variant}</Pill>
                       <strong>{item.operation}</strong>
                       <span>{Number(item.gas).toLocaleString()} gas</span>
-                      <small>Block {item.block} | <a href={`https://amoy.polygonscan.com/tx/${item.hash}`} target="_blank" rel="noreferrer" style={{ color: "#2563eb", textDecoration: "underline", marginLeft: "4px" }}>Polygonscan receipt ({item.hash.slice(0, 10)}...)</a></small>
+                      <small>Block {item.block} | <a href={`https://amoy.polygonscan.com/tx/${item.hash}`} target="_blank" rel="noreferrer" style={{ color: "#2563eb", textDecoration: "underline", marginLeft: "4px" }}>{item.hash.slice(0, 10)}...</a></small>
                     </div>
                   ))}
                 </div>
@@ -1908,7 +1876,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                     <span><strong>#{document.landId}</strong><small>{document.category}</small></span>
                     <span>{document.reference}<small>{document.hash || "No hash provided"}</small></span>
                     <span><Pill tone={document.status === "Verified" ? "success" : "warning"}>{document.status}</Pill></span>
-                    <span>{document.status === "Pending" && session.user.role === "officer" ? <button className="small-button" disabled={!isRegistrar} onClick={() => verifyDocument(document.id)}>Verify</button> : document.status === "Pending" ? <small>Awaiting officer review</small> : <small>{new Date(document.verifiedAt).toLocaleDateString()}</small>}</span>
+                    <span>{document.status === "Pending" && session.user.role === "officer" ? <button className="small-button" disabled={!isRegistrar} onClick={() => verifyDocument(document.id)}>Verify</button> : <small>No action</small>}</span>
                   </div>
                 ))}
               </div>
@@ -1918,46 +1886,16 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
 
         {view === "accounts" && session.user.role === "admin" && (
           <section className="page-grid documents">
-            <Card
-              title="System User Control & Account Management"
-              action={
-                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                  <Pill tone="purple">{allUsers.length} total registered accounts</Pill>
-                  <button className="text-button" onClick={loadAllUsers}>Refresh users</button>
-                  <button className="small-button" style={{ background: "#dc2626", color: "#ffffff", border: "none", padding: "6px 12px", cursor: "pointer" }} onClick={resetSystemDatabase}>Reset Database</button>
-                </div>
-              }
-            >
-              <p className="hint">
-                As System Administrator, you can monitor, block/unblock, or permanently delete any user account across Citizens, Farmers, Purchasers, and Revenue Officers.
-              </p>
+            <Card title="System User Control & Account Management" action={<div style={{ display: "flex", gap: "8px", alignItems: "center" }}><Pill tone="purple">{allUsers.length} total registered accounts</Pill><button className="text-button" onClick={loadAllUsers}>Refresh users</button><button className="small-button" style={{ background: "#dc2626", color: "#ffffff", border: "none", padding: "6px 12px", cursor: "pointer" }} onClick={resetSystemDatabase}>Reset Database</button></div>}>
+              <p className="hint">As System Administrator, you can monitor, block/unblock, or permanently delete any user account across Citizens, Farmers, Purchasers, and Revenue Officers.</p>
 
               <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap", alignItems: "center" }}>
                 <div style={{ flex: 1, minWidth: "220px" }}>
-                  <input
-                    type="text"
-                    placeholder="Search users by name, username, email, or wallet..."
-                    value={userSearchQuery}
-                    onChange={(e) => setUserSearchQuery(e.target.value)}
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1" }}
-                  />
+                  <input type="text" placeholder="Search users by name, username, email, or wallet..." value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1" }} />
                 </div>
                 <div style={{ display: "flex", gap: "6px" }}>
                   {["all", "citizen", "farmer", "purchaser", "officer", "admin"].map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      className="small-button"
-                      style={{
-                        background: userRoleFilter === r ? "#1e3a8a" : "#f1f5f9",
-                        color: userRoleFilter === r ? "#ffffff" : "#475569",
-                        border: "1px solid #cbd5e1",
-                        textTransform: "capitalize"
-                      }}
-                      onClick={() => setUserRoleFilter(r)}
-                    >
-                      {r}
-                    </button>
+                    <button key={r} type="button" className="small-button" style={{ background: userRoleFilter === r ? "#1e3a8a" : "#f1f5f9", color: userRoleFilter === r ? "#ffffff" : "#475569", border: "1px solid #cbd5e1", textTransform: "capitalize" }} onClick={() => setUserRoleFilter(r)}>{r}</button>
                   ))}
                 </div>
               </div>
@@ -1989,9 +1927,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                       <span>
                         <strong>{userItem.fullName}</strong>
                         <div style={{ display: "flex", gap: "4px", marginTop: "2px" }}>
-                          <Pill tone={userItem.role === "admin" ? "purple" : userItem.role === "officer" ? "success" : "neutral"}>
-                            {userItem.role}
-                          </Pill>
+                          <Pill tone={userItem.role === "admin" ? "purple" : userItem.role === "officer" ? "success" : "neutral"}>{userItem.role}</Pill>
                         </div>
                       </span>
 
@@ -2003,9 +1939,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                       <span>{userItem.mobile || "N/A"}</span>
 
                       <span>
-                        <Pill tone={userItem.status === "Blocked" ? "danger" : "success"}>
-                          {userItem.status || "Active"}
-                        </Pill>
+                        <Pill tone={userItem.status === "Blocked" ? "danger" : "success"}>{userItem.status || "Active"}</Pill>
                       </span>
 
                       <span>
@@ -2019,26 +1953,8 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                           <small style={{ color: "#94a3b8", fontStyle: "italic" }}>System Protected</small>
                         ) : (
                           <div style={{ display: "flex", gap: "6px" }}>
-                            <button
-                              type="button"
-                              className="small-button"
-                              style={{
-                                background: userItem.status === "Blocked" ? "#16a34a" : "#d97706",
-                                color: "#ffffff",
-                                border: "none"
-                              }}
-                              onClick={() => toggleUserStatus(userItem.id, userItem.status || "Active", userItem.fullName)}
-                            >
-                              {userItem.status === "Blocked" ? "Unblock" : "Block"}
-                            </button>
-                            <button
-                              type="button"
-                              className="small-button"
-                              style={{ background: "#dc2626", color: "#ffffff", border: "none" }}
-                              onClick={() => deleteUser(userItem.id, userItem.fullName)}
-                            >
-                              Delete
-                            </button>
+                            <button type="button" className="small-button" style={{ background: userItem.status === "Blocked" ? "#16a34a" : "#d97706", color: "#ffffff", border: "none" }} onClick={() => toggleUserStatus(userItem.id, userItem.status || "Active", userItem.fullName)}>{userItem.status === "Blocked" ? "Unblock" : "Block"}</button>
+                            <button type="button" className="small-button" style={{ background: "#dc2626", color: "#ffffff", border: "none" }} onClick={() => deleteUser(userItem.id, userItem.fullName)}>Delete</button>
                           </div>
                         )}
                       </span>
@@ -2066,18 +1982,8 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
 
         {view === "gaslog" && (
           <section className="page-grid analytics">
-            <Card
-              title="Live EVM Gas Audit & Transaction Log"
-              action={
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <Pill tone="purple">{liveTransactions.length} recent txs logged</Pill>
-                  <button className="text-button" onClick={() => setLiveTransactions([])}>Clear log</button>
-                </div>
-              }
-            >
-              <p className="hint">
-                Real-time audit log tracking EVM gas consumption, execution block height, target smart contract variant, and transaction hash across all system operations.
-              </p>
+            <Card title="Live EVM Gas Audit & Transaction Log" action={<div style={{ display: "flex", gap: "8px" }}><Pill tone="purple">{liveTransactions.length} recent txs logged</Pill><button className="text-button" onClick={() => setLiveTransactions([])}>Clear log</button></div>}>
+              <p className="hint">Real-time audit log tracking EVM gas consumption, execution block height, target smart contract variant, and transaction hash across all system operations.</p>
 
               <div className="document-table">
                 <div className="table-row heading" style={{ gridTemplateColumns: "1fr 1.2fr 1.2fr 1fr 0.8fr 1.2fr" }}>
@@ -2092,26 +1998,18 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                 {liveTransactions.map((txItem, idx) => (
                   <div className="table-row" key={txItem.hash || idx} style={{ gridTemplateColumns: "1fr 1.2fr 1.2fr 1fr 0.8fr 1.2fr", alignItems: "center" }}>
                     <span>
-                      <strong style={{ textTransform: "capitalize", color: "#1e3a8a" }}>
-                        {txItem.operation || txItem.process || "registerLand"}
-                      </strong>
+                      <strong style={{ textTransform: "capitalize", color: "#1e3a8a" }}>{txItem.operation || txItem.process || "registerLand"}</strong>
                       <small style={{ color: "#6b7280" }}>Land #{txItem.landId || "N/A"}</small>
                     </span>
 
                     <span>
-                      <Pill tone={txItem.variant === "optimized" ? "success" : "warning"}>
-                        {txItem.variant === "optimized" ? "OptimizedLandRegistry" : "BaseLandRegistry"}
-                      </Pill>
-                      <small style={{ fontFamily: "monospace", display: "block", marginTop: "4px", fontSize: "0.75rem" }}>
-                        {txItem.contractAddress || (txItem.variant === "optimized" ? ADDRESSES.optimized : ADDRESSES.base)}
-                      </small>
+                      <Pill tone={txItem.variant === "optimized" ? "success" : "warning"}>{txItem.variant === "optimized" ? "OptimizedLandRegistry" : "BaseLandRegistry"}</Pill>
+                      <small style={{ fontFamily: "monospace", display: "block", marginTop: "4px", fontSize: "0.75rem" }}>{txItem.contractAddress || (txItem.variant === "optimized" ? ADDRESSES.optimized : ADDRESSES.base)}</small>
                     </span>
 
                     <span>
                       <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: txItem.variant === "optimized" ? "#dcfce7" : "#fef3c7", color: txItem.variant === "optimized" ? "#15803d" : "#b45309", padding: "4px 8px", borderRadius: "6px", fontWeight: "bold", fontSize: "0.95rem" }}>
-                          {Number(txItem.gas).toLocaleString()} gas
-                        </span>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: txItem.variant === "optimized" ? "#dcfce7" : "#fef3c7", color: txItem.variant === "optimized" ? "#166534" : "#92400e", padding: "3px 8px", borderRadius: "999px", fontWeight: "700" }}>{Number(txItem.gas).toLocaleString()} gas</span>
                         <small style={{ color: "#64748b", fontSize: "0.72rem" }}>{txItem.variant === "optimized" ? "~30.3% gas saved" : "Standard storage"}</small>
                       </div>
                     </span>
@@ -2125,13 +2023,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                     </span>
 
                     <span>
-                      <a
-                        href={`#${txItem.hash}`}
-                        onClick={(e) => { e.preventDefault(); window.prompt("Transaction Hash:", txItem.hash); }}
-                        style={{ fontFamily: "monospace", fontSize: "0.8rem", color: "#2563eb", textDecoration: "underline" }}
-                      >
-                        {txItem.hash ? `${txItem.hash.slice(0, 10)}...${txItem.hash.slice(-6)}` : "0x000...000"}
-                      </a>
+                      <a href={`#${txItem.hash}`} onClick={(e) => { e.preventDefault(); window.prompt("Transaction Hash:", txItem.hash); }} style={{ fontFamily: "monospace", fontSize: "0.8rem", color: "#2563eb", textDecoration: "underline" }}>{txItem.hash ? `${txItem.hash.slice(0, 10)}...${txItem.hash.slice(-6)}` : "0x000...000"}</a>
                     </span>
                   </div>
                 ))}
@@ -2163,9 +2055,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                       <span><Pill tone="purple">{entry.actor}</Pill></span>
                       <span>
                         {gasStr !== "N/A" ? (
-                          <span style={{ background: "#f1f5f9", padding: "3px 8px", borderRadius: "4px", fontWeight: "bold", color: "#1e293b", fontSize: "0.85rem" }}>
-                            {gasStr}
-                          </span>
+                          <span style={{ background: "#f1f5f9", padding: "3px 8px", borderRadius: "4px", fontWeight: "bold", color: "#1e293b", fontSize: "0.85rem" }}>{gasStr}</span>
                         ) : (
                           <small style={{ color: "#94a3b8" }}>State mutation</small>
                         )}
@@ -2232,19 +2122,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
 
         {view === "loadtest" && session.user.role === "admin" && (
           <section className="page-grid analytics">
-            <Card
-              title="Real-Time EVM Workload Benchmark (10, 100, 500 Transactions)"
-              action={
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <button className="small-button" disabled={runningLoadTest} onClick={() => runLoadTest([10])}>
-                    Run 10 Txns Live
-                  </button>
-                  <button className="primary" disabled={runningLoadTest} onClick={() => runLoadTest([10, 100, 500])}>
-                    {runningLoadTest ? "Executing Real-Time EVM..." : "Execute Real-Time 10, 100, 500 Load Test"}
-                  </button>
-                </div>
-              }
-            >
+            <Card title="Real-Time EVM Workload Benchmark (10, 100, 500 Transactions)" action={<div style={{ display: "flex", gap: "8px" }}><button className="small-button" disabled={runningLoadTest} onClick={() => runLoadTest([10])}>Run 10 Txns Live</button><button className="primary" disabled={runningLoadTest} onClick={() => runLoadTest([10, 100, 500])}>{runningLoadTest ? "Executing Real-Time EVM..." : "Execute Real-Time 10, 100, 500 Load Test"}</button></div>}>
               {runningLoadTest && (
                 <div style={{ padding: "14px", background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: "8px", marginBottom: "16px", color: "#1e40af", fontWeight: "600", display: "flex", alignItems: "center", gap: "10px" }}>
                   <span className="signal" style={{ background: "#2563eb", width: "12px", height: "12px" }} />
@@ -2252,9 +2130,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                 </div>
               )}
 
-              <p className="hint" style={{ marginBottom: "16px" }}>
-                Click the button above to execute real-time blockchain transactions directly on your connected local Ganache EVM. This executes 4-step transfer lifecycles across <strong>10, 100, and 500 transaction batches</strong> for both <code>BaseLandRegistry</code> and <code>OptimizedLandRegistry</code>, measuring live EVM gas consumption, execution speed (ms), and failure rates.
-              </p>
+              <p className="hint" style={{ marginBottom: "16px" }}>Click the button above to execute real-time blockchain transactions directly on your connected local Ganache EVM. This executes 4-step transfer lifecycles across <strong>10, 100, and 500</strong> land transaction batches.</p>
 
               {loadReport?.results?.length ? (
                 <>
@@ -2270,7 +2146,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                       </div>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px", alignItems: "end", height: "260px", padding: "20px 10px 10px 10px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #f1f5f9" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px", alignItems: "end", height: "260px", padding: "20px 10px 10px 10px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px" }}>
                       {Array.from(new Set(loadReport.results.map((r) => r.load))).map((loadCount) => {
                         const baseRow = loadReport.results.find((r) => r.load === loadCount && r.contract.includes("Base"));
                         const optRow = loadReport.results.find((r) => r.load === loadCount && r.contract.includes("Optimized"));
@@ -2291,35 +2167,13 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
 
                             <div style={{ display: "flex", gap: "12px", alignItems: "flex-end", width: "100%", justifyContent: "center" }}>
                               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "42%" }}>
-                                <span style={{ fontSize: "0.72rem", color: "#b45309", fontWeight: "bold", marginBottom: "4px" }}>
-                                  {baseRow.totalGas >= 1000000 ? `${(baseRow.totalGas / 1000000).toFixed(1)}M` : `${(baseRow.totalGas / 1000).toFixed(0)}K`}
-                                </span>
-                                <div
-                                  style={{
-                                    width: "100%",
-                                    height: `${baseHeight}px`,
-                                    background: "linear-gradient(180deg, #d97706 0%, #b45309 100%)",
-                                    borderRadius: "6px 6px 0 0",
-                                    transition: "height 0.4s ease"
-                                  }}
-                                  title={`Base: ${baseRow.totalGas.toLocaleString()} gas`}
-                                />
+                                <span style={{ fontSize: "0.72rem", color: "#b45309", fontWeight: "bold", marginBottom: "4px" }}>{baseRow.totalGas >= 1000000 ? `${(baseRow.totalGas / 1000000).toFixed(1)}M` : `${(baseRow.totalGas / 1000).toFixed(0)}K`}</span>
+                                <div style={{ width: "100%", height: `${baseHeight}px`, background: "linear-gradient(180deg, #d97706 0%, #b45309 100%)", borderRadius: "6px 6px 0 0", transition: "height 0.4s ease" }} title={`Base: ${baseRow.totalGas.toLocaleString()} gas`} />
                               </div>
 
                               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "42%" }}>
-                                <span style={{ fontSize: "0.72rem", color: "#16a34a", fontWeight: "bold", marginBottom: "4px" }}>
-                                  {optRow.totalGas >= 1000000 ? `${(optRow.totalGas / 1000000).toFixed(1)}M` : `${(optRow.totalGas / 1000).toFixed(0)}K`}
-                                </span>
-                                <div
-                                  style={{
-                                    width: "100%",
-                                    height: `${optHeight}px`,
-                                    background: "linear-gradient(180deg, #22c55e 0%, #16a34a 100%)",
-                                    borderRadius: "6px 6px 0 0",
-                                    transition: "height 0.4s ease"
-                                  }}
-                                  title={`Optimized: ${optRow.totalGas.toLocaleString()} gas`}
-                                />
+                                <span style={{ fontSize: "0.72rem", color: "#16a34a", fontWeight: "bold", marginBottom: "4px" }}>{optRow.totalGas >= 1000000 ? `${(optRow.totalGas / 1000000).toFixed(1)}M` : `${(optRow.totalGas / 1000).toFixed(0)}K`}</span>
+                                <div style={{ width: "100%", height: `${optHeight}px`, background: "linear-gradient(180deg, #22c55e 0%, #16a34a 100%)", borderRadius: "6px 6px 0 0", transition: "height 0.4s ease" }} title={`Optimized: ${optRow.totalGas.toLocaleString()} gas`} />
                               </div>
                             </div>
 
@@ -2347,9 +2201,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
                       <tbody>
                         {loadReport.results.map((row, idx) => (
                           <tr key={idx} style={{ borderBottom: "1px solid #e2e8f0", background: row.contract.includes("Optimized") ? "#f0fdf4" : "#ffffff" }}>
-                            <td style={{ padding: "10px", fontWeight: "bold", color: row.contract.includes("Optimized") ? "#15803d" : "#1e293b" }}>
-                              {row.contract}
-                            </td>
+                            <td style={{ padding: "10px", fontWeight: "bold", color: row.contract.includes("Optimized") ? "#15803d" : "#1e293b" }}>{row.contract}</td>
                             <td style={{ padding: "10px" }}><Pill tone={row.mode === "concurrent" ? "purple" : "neutral"}>{row.mode}</Pill></td>
                             <td style={{ padding: "10px", fontWeight: "bold" }}>{row.load} Txns</td>
                             <td style={{ padding: "10px" }}>{Number(row.totalGas).toLocaleString()} gas</td>
@@ -2386,7 +2238,7 @@ await refreshAppData(); } catch (error) { setMessage(error.message); }
               </div>
             </Card>
             <Card title="Project boundary">
-              <p>This local JSON log is deliberately a demonstration persistence layer. A production deployment would use authenticated users, encrypted document storage, a managed database, and government/legal integration.</p>
+              <p>This local JSON log is deliberately a demonstration persistence layer. A production deployment would use authenticated users, encrypted document storage, a managed database, and government-grade audit retention.</p>
               <div className="posture">
                 <Pill tone="success">Blockchain events</Pill>
                 <Pill>Document references</Pill>
