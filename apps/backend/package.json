@@ -9,7 +9,7 @@
     "start": "node src/index.js",
     "build": "node -e \"console.log('No backend build step configured yet')\"",
     "test": "node --test",
-    "lint": "eslint src --ext .js",
+    "lint": "eslint src",
     "clean": "node -e \"console.log('No backend clean step configured yet')\""
   },
   "dependencies": {

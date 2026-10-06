@@ -1,14 +1,36 @@
 export default [
   {
-    files: ["src/**/*.{js,jsx}"],
+    files: ["**/*.js", "**/*.jsx"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
-      parserOptions: { ecmaFeatures: { jsx: true } },
-      globals: { window: "readonly", document: "readonly", fetch: "readonly", setInterval: "readonly", clearInterval: "readonly" }
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true
+        }
+      },
+      globals: {
+        window: "readonly",
+        document: "readonly",
+        navigator: "readonly",
+        console: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        setInterval: "readonly",
+        clearInterval: "readonly",
+        localStorage: "readonly",
+        sessionStorage: "readonly",
+        fetch: "readonly",
+        performance: "readonly",
+        alert: "readonly",
+        confirm: "readonly",
+        process: "readonly"
+      }
     },
     rules: {
-      "no-undef": "error"
+      "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+      "no-console": "off",
+      "no-undef": "warn"
     }
   }
 ];

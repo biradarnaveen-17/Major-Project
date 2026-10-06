@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-16T09:26:38.635Z",
+  "generatedAt": "2026-09-26T04:13:30.056Z",
   "loads": [
     10,
     100,
@@ -14,28 +14,28 @@
         "registerLand": {
           "gas": 2304140,
           "failures": 0,
-          "elapsedMs": 15.18
+          "elapsedMs": 16.13
         },
         "requestTransfer": {
           "gas": 317260,
           "failures": 0,
-          "elapsedMs": 10.21
+          "elapsedMs": 10.61
         },
         "approveTransfer": {
           "gas": 311020,
           "failures": 0,
-          "elapsedMs": 8.26
+          "elapsedMs": 8.54
         },
         "transferOwnership": {
           "gas": 613400,
           "failures": 0,
-          "elapsedMs": 9.11
+          "elapsedMs": 9.03
         }
       },
       "totalGas": 3545820,
       "gasPerLifecycle": 354582,
       "failureRate": 0,
-      "elapsedMs": 42.76
+      "elapsedMs": 44.31
     },
     {
       "contract": "OptimizedLandRegistry",
@@ -45,28 +45,28 @@
         "registerLand": {
           "gas": 1605206,
           "failures": 0,
-          "elapsedMs": 13.77
+          "elapsedMs": 13.31
         },
         "requestTransfer": {
           "gas": 317250,
           "failures": 0,
-          "elapsedMs": 8.74
+          "elapsedMs": 8.73
         },
         "approveTransfer": {
           "gas": 311050,
           "failures": 0,
-          "elapsedMs": 7.39
+          "elapsedMs": 7.63
         },
         "transferOwnership": {
           "gas": 613220,
           "failures": 0,
-          "elapsedMs": 7.72
+          "elapsedMs": 8.89
         }
       },
       "totalGas": 2846726,
       "gasPerLifecycle": 284673,
       "failureRate": 0,
-      "elapsedMs": 37.62
+      "elapsedMs": 38.56
     },
     {
       "contract": "BaseLandRegistry",
@@ -76,28 +76,28 @@
         "registerLand": {
           "gas": 2304140,
           "failures": 0,
-          "elapsedMs": 7.87
+          "elapsedMs": 8.05
         },
         "requestTransfer": {
           "gas": 317260,
           "failures": 0,
-          "elapsedMs": 5.92
+          "elapsedMs": 5.1
         },
         "approveTransfer": {
           "gas": 311020,
           "failures": 0,
-          "elapsedMs": 5.44
+          "elapsedMs": 5.53
         },
         "transferOwnership": {
           "gas": 613400,
           "failures": 0,
-          "elapsedMs": 6.28
+          "elapsedMs": 6.13
         }
       },
       "totalGas": 3545820,
       "gasPerLifecycle": 354582,
       "failureRate": 0,
-      "elapsedMs": 25.51
+      "elapsedMs": 24.81
     },
     {
       "contract": "OptimizedLandRegistry",
@@ -107,28 +107,28 @@
         "registerLand": {
           "gas": 1605206,
           "failures": 0,
-          "elapsedMs": 20.45
+          "elapsedMs": 16.09
         },
         "requestTransfer": {
           "gas": 317250,
           "failures": 0,
-          "elapsedMs": 5.31
+          "elapsedMs": 5.39
         },
         "approveTransfer": {
           "gas": 311050,
           "failures": 0,
-          "elapsedMs": 5.09
+          "elapsedMs": 5.03
         },
         "transferOwnership": {
           "gas": 613220,
           "failures": 0,
-          "elapsedMs": 5.01
+          "elapsedMs": 5.75
         }
       },
       "totalGas": 2846726,
       "gasPerLifecycle": 284673,
       "failureRate": 0,
-      "elapsedMs": 35.86
+      "elapsedMs": 32.26
     },
     {
       "contract": "BaseLandRegistry",
@@ -138,28 +138,28 @@
         "registerLand": {
           "gas": 23041388,
           "failures": 0,
-          "elapsedMs": 116.64
+          "elapsedMs": 132.08
         },
         "requestTransfer": {
           "gas": 3172588,
           "failures": 0,
-          "elapsedMs": 80.5
+          "elapsedMs": 102.81
         },
         "approveTransfer": {
           "gas": 3110188,
           "failures": 0,
-          "elapsedMs": 77.29
+          "elapsedMs": 84.75
         },
         "transferOwnership": {
           "gas": 6133988,
           "failures": 0,
-          "elapsedMs": 97.05
+          "elapsedMs": 89.29
         }
       },
       "totalGas": 35458152,
       "gasPerLifecycle": 354582,
       "failureRate": 0,
-      "elapsedMs": 371.48
+      "elapsedMs": 408.93
     },
     {
       "contract": "OptimizedLandRegistry",
@@ -169,28 +169,28 @@
         "registerLand": {
           "gas": 16052168,
           "failures": 0,
-          "elapsedMs": 143.81
+          "elapsedMs": 125.2
         },
         "requestTransfer": {
           "gas": 3172488,
           "failures": 0,
-          "elapsedMs": 105.77
+          "elapsedMs": 81.23
         },
         "approveTransfer": {
           "gas": 3110488,
           "failures": 0,
-          "elapsedMs": 90.22
+          "elapsedMs": 73.01
         },
         "transferOwnership": {
           "gas": 6132188,
           "failures": 0,
-          "elapsedMs": 83.97
+          "elapsedMs": 82.18
         }
       },
       "totalGas": 28467332,
       "gasPerLifecycle": 284673,
       "failureRate": 0,
-      "elapsedMs": 423.77
+      "elapsedMs": 361.62
     },
     {
       "contract": "BaseLandRegistry",
@@ -200,28 +200,28 @@
         "registerLand": {
           "gas": 23041388,
           "failures": 0,
-          "elapsedMs": 88.38
+          "elapsedMs": 79.53
         },
         "requestTransfer": {
           "gas": 3172588,
           "failures": 0,
-          "elapsedMs": 51.31
+          "elapsedMs": 53.88
         },
         "approveTransfer": {
           "gas": 3110188,
           "failures": 0,
-          "elapsedMs": 56.65
+          "elapsedMs": 63.82
         },
         "transferOwnership": {
           "gas": 6133988,
           "failures": 0,
-          "elapsedMs": 53.4
+          "elapsedMs": 58.19
         }
       },
       "totalGas": 35458152,
       "gasPerLifecycle": 354582,
       "failureRate": 0,
-      "elapsedMs": 249.74
+      "elapsedMs": 255.42
     },
     {
       "contract": "OptimizedLandRegistry",
@@ -231,28 +231,28 @@
         "registerLand": {
           "gas": 16052168,
           "failures": 0,
-          "elapsedMs": 71.53
+          "elapsedMs": 77.22
         },
         "requestTransfer": {
           "gas": 3172488,
           "failures": 0,
-          "elapsedMs": 51.01
+          "elapsedMs": 53.96
         },
         "approveTransfer": {
           "gas": 3110488,
           "failures": 0,
-          "elapsedMs": 45.97
+          "elapsedMs": 52.88
         },
         "transferOwnership": {
           "gas": 6132188,
           "failures": 0,
-          "elapsedMs": 51.66
+          "elapsedMs": 53.39
         }
       },
       "totalGas": 28467332,
       "gasPerLifecycle": 284673,
       "failureRate": 0,
-      "elapsedMs": 220.17
+      "elapsedMs": 237.45
     },
     {
       "contract": "BaseLandRegistry",
@@ -262,28 +262,28 @@
         "registerLand": {
           "gas": 115206976,
           "failures": 0,
-          "elapsedMs": 577.74
+          "elapsedMs": 606.92
         },
         "requestTransfer": {
           "gas": 15862976,
           "failures": 0,
-          "elapsedMs": 460.1
+          "elapsedMs": 440.44
         },
         "approveTransfer": {
           "gas": 15550976,
           "failures": 0,
-          "elapsedMs": 397.77
+          "elapsedMs": 405.71
         },
         "transferOwnership": {
           "gas": 30669976,
           "failures": 0,
-          "elapsedMs": 447.38
+          "elapsedMs": 444.67
         }
       },
       "totalGas": 177290904,
       "gasPerLifecycle": 354582,
       "failureRate": 0,
-      "elapsedMs": 1882.99
+      "elapsedMs": 1897.74
     },
     {
       "contract": "OptimizedLandRegistry",
@@ -293,28 +293,28 @@
         "registerLand": {
           "gas": 80260792,
           "failures": 0,
-          "elapsedMs": 621.17
+          "elapsedMs": 639.77
         },
         "requestTransfer": {
           "gas": 15862476,
           "failures": 0,
-          "elapsedMs": 405.19
+          "elapsedMs": 435.34
         },
         "approveTransfer": {
           "gas": 15552476,
           "failures": 0,
-          "elapsedMs": 389.77
+          "elapsedMs": 405.63
         },
         "transferOwnership": {
           "gas": 30660976,
           "failures": 0,
-          "elapsedMs": 409.57
+          "elapsedMs": 452.69
         }
       },
       "totalGas": 142336720,
       "gasPerLifecycle": 284673,
       "failureRate": 0,
-      "elapsedMs": 1825.7
+      "elapsedMs": 1933.43
     },
     {
       "contract": "BaseLandRegistry",
@@ -324,28 +324,28 @@
         "registerLand": {
           "gas": 115206976,
           "failures": 0,
-          "elapsedMs": 418.96
+          "elapsedMs": 501.86
         },
         "requestTransfer": {
           "gas": 15862976,
           "failures": 0,
-          "elapsedMs": 297.26
+          "elapsedMs": 306.65
         },
         "approveTransfer": {
           "gas": 15550976,
           "failures": 0,
-          "elapsedMs": 281.42
+          "elapsedMs": 307.43
         },
         "transferOwnership": {
           "gas": 30669976,
           "failures": 0,
-          "elapsedMs": 303.54
+          "elapsedMs": 364.88
         }
       },
       "totalGas": 177290904,
       "gasPerLifecycle": 354582,
       "failureRate": 0,
-      "elapsedMs": 1301.18
+      "elapsedMs": 1480.82
     },
     {
       "contract": "OptimizedLandRegistry",
@@ -355,28 +355,28 @@
         "registerLand": {
           "gas": 80260792,
           "failures": 0,
-          "elapsedMs": 398.62
+          "elapsedMs": 413.19
         },
         "requestTransfer": {
           "gas": 15862476,
           "failures": 0,
-          "elapsedMs": 283.67
+          "elapsedMs": 307.4
         },
         "approveTransfer": {
           "gas": 15552476,
           "failures": 0,
-          "elapsedMs": 270.28
+          "elapsedMs": 280.4
         },
         "transferOwnership": {
           "gas": 30660976,
           "failures": 0,
-          "elapsedMs": 307.51
+          "elapsedMs": 335.31
         }
       },
       "totalGas": 142336720,
       "gasPerLifecycle": 284673,
       "failureRate": 0,
-      "elapsedMs": 1260.08
+      "elapsedMs": 1336.3
     }
   ]
 }

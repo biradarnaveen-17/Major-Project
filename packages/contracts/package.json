@@ -12,7 +12,7 @@
     "compare:gas": "hardhat run scripts/compareGas.js",
     "benchmark:loads": "hardhat run scripts/benchmarkLoads.js",
     "demo:seed": "hardhat run scripts/seedDemo.js --network ganache",
-    "lint": "solhint 'contracts/**/*.sol'",
+    "lint": "solhint \"contracts/**/*.sol\"",
     "clean": "hardhat clean"
   },
   "dependencies": {

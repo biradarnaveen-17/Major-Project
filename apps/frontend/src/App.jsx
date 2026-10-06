@@ -507,24 +507,119 @@ export default function BhoomiApp() {
     } catch (error) { setMessage(error.shortMessage || error.message); }
   }
 
-  async function signIn(authResult) {
-    const role = authResult.user.role || "citizen";
-    const portalRole = PORTALS[role] ? role : "citizen";
-    await useDemoAccount(PORTALS[portalRole].account, authResult.user);
-    setSession({ ...authResult, signedInAt: new Date().toISOString() });
-    sessionStorage.setItem("bhoomichain_session", JSON.stringify(authResult));
-    setView(PORTALS[portalRole].defaultView);
-    window.location.hash = `/${portalRole}`;
-    if (["citizen", "farmer", "purchaser"].includes(role)) {
-      const activeWallet = authResult.user.username === "sudeep" ? "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" : authResult.user.username === "raj" || authResult.user.username === "boss" ? "0x90F79bf6EB2c4f870365E785982E1f101E93b906" : role === "farmer" ? DEMO_ACCOUNTS.farmer : DEMO_ACCOUNTS.buyer;
-      setFarmer({ id: authResult.user.id, name: authResult.user.fullName, email: authResult.user.email, mobile: authResult.user.mobile, walletAddress: activeWallet, verified: true });
-      try {
-        const savedFarmers = await api(`/api/farmers?email=${encodeURIComponent(authResult.user.email)}`);
-        if (savedFarmers[0]) setFarmer((prev) => ({ ...prev, ...savedFarmers[0], walletAddress: activeWallet }));
-      } catch { /* Ignore */ }
-    }
-    if (role === "admin") await loadOfficers(authResult.token);
+async function signIn(authResult) {
+  const role = authResult.user.role || "citizen";
+  const portalRole = PORTALS[role] ? role : "citizen";
+
+  // 1. Sign in immediately — don't wait for blockchain initialization
+  setSession({ ...authResult, signedInAt: new Date().toISOString() });
+  sessionStorage.setItem("bhoomichain_session", JSON.stringify(authResult));
+  setView(PORTALS[portalRole].defaultView);
+  window.location.hash = `/${portalRole}`;
+
+  // 2. Initialize blockchain wallet in the background
+  useDemoAccount(PORTALS[portalRole].account, authResult.user)
+    .catch((error) => {
+      console.warn("Background blockchain initialization:", error.message);
+    });
+
+  // 3. Load farmer information in the background
+  if (["citizen", "farmer", "purchaser"].includes(role)) {
+    const activeWallet =
+      authResult.user.username === "sudeep"
+        ? "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+        : authResult.user.username === "raj" ||
+          authResult.user.username === "boss"
+        ? "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+        : role === "farmer"
+        ? DEMO_ACCOUNTS.farmer
+        : DEMO_ACCOUNTS.buyer;
+
+    setFarmer({
+      id: authResult.user.id,
+      name: authResult.user.fullName,
+      email: authResult.user.email,
+      mobile: authResult.user.mobile,
+      walletAddress: activeWallet,
+      verified: true
+    });
+
+    api(`/api/farmers?email=${encodeURIComponent(authResult.user.email)}`)
+      .then((savedFarmers) => {
+        if (savedFarmers[0]) {
+          setFarmer((prev) => ({
+            ...prev,
+            ...savedFarmers[0],
+            walletAddress: activeWallet
+          }));
+        }
+      })
+      .catch(() => {
+        // Farmer data is optional during initial login.
+      });
   }
+
+  // 4. Admin data can also load in background
+  if (role === "admin") {
+    loadOfficers(authResult.token).catch(() => {});
+  }
+}async function signIn(authResult) {
+  const role = authResult.user.role || "citizen";
+  const portalRole = PORTALS[role] ? role : "citizen";
+
+  // 1. Sign in immediately — don't wait for blockchain initialization
+  setSession({ ...authResult, signedInAt: new Date().toISOString() });
+  sessionStorage.setItem("bhoomichain_session", JSON.stringify(authResult));
+  setView(PORTALS[portalRole].defaultView);
+  window.location.hash = `/${portalRole}`;
+
+  // 2. Initialize blockchain wallet in the background
+  useDemoAccount(PORTALS[portalRole].account, authResult.user)
+    .catch((error) => {
+      console.warn("Background blockchain initialization:", error.message);
+    });
+
+  // 3. Load farmer information in the background
+  if (["citizen", "farmer", "purchaser"].includes(role)) {
+    const activeWallet =
+      authResult.user.username === "sudeep"
+        ? "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+        : authResult.user.username === "raj" ||
+          authResult.user.username === "boss"
+        ? "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+        : role === "farmer"
+        ? DEMO_ACCOUNTS.farmer
+        : DEMO_ACCOUNTS.buyer;
+
+    setFarmer({
+      id: authResult.user.id,
+      name: authResult.user.fullName,
+      email: authResult.user.email,
+      mobile: authResult.user.mobile,
+      walletAddress: activeWallet,
+      verified: true
+    });
+
+    api(`/api/farmers?email=${encodeURIComponent(authResult.user.email)}`)
+      .then((savedFarmers) => {
+        if (savedFarmers[0]) {
+          setFarmer((prev) => ({
+            ...prev,
+            ...savedFarmers[0],
+            walletAddress: activeWallet
+          }));
+        }
+      })
+      .catch(() => {
+        // Farmer data is optional during initial login.
+      });
+  }
+
+  // 4. Admin data can also load in background
+  if (role === "admin") {
+    loadOfficers(authResult.token).catch(() => {});
+  }
+}
 
   function signOut() { sessionStorage.removeItem("bhoomichain_session"); setSession(null); setWallet(null); setIsRegistrar(null); setFarmer(null); setOfficers([]); setView("overview"); setMessage("Choose a portal to continue."); }
 
@@ -1058,6 +1153,7 @@ export default function BhoomiApp() {
       if (action === "transfer") {
         try {
           const newOwnerWallet = await transferSigner.getAddress();
+          const newOwnerName = (registeredFarmers || []).find((f) => f.walletAddress?.toLowerCase() === newOwnerWallet.toLowerCase())?.name || shortAddress(newOwnerWallet);
           const existingMeta = (landRequests || []).find((r) => String(r.landId) === String(form.landId));
           await api(`/api/land-requests/transfer-owner/${form.landId}`, {
             method: "PATCH",
@@ -1112,7 +1208,7 @@ export default function BhoomiApp() {
       }
     } catch (error) {
       console.error("Submit transaction failed:", error);
-      const friendlyError = displayError(error, registry);
+      const friendlyError = displayError(error);
       if (action === "register" && friendlyError === errorText.DuplicateRegistration) {
         const freshId = String(Date.now());
         setForm((current) => ({ ...current, landId: freshId }));

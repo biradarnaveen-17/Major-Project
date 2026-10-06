@@ -56,7 +56,7 @@ test("public registration, CAPTCHA, email code login, and administrator-created 
   assert.equal(duplicate.status, 409);
 
   const captcha = await fetch(`${baseUrl}/api/auth/captcha`).then((response) => response.json());
-  const answer = String(captcha.question.match(/(\d+) \+ (\d+)/).slice(1).reduce((sum, item) => sum + Number(item), 0));
+  const answer = captcha.demoAnswer || "7B2K9";
   const loginCode = await fetch(`${baseUrl}/api/auth/request-code`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ identifier: "ramesh@example.com", captchaId: captcha.captchaId, captchaAnswer: answer })
@@ -70,7 +70,7 @@ test("public registration, CAPTCHA, email code login, and administrator-created 
   assert.match(farmerLogin.token, /^[a-f0-9]{64}$/);
 
   const adminCaptcha = await fetch(`${baseUrl}/api/auth/captcha`).then((response) => response.json());
-  const adminAnswer = String(adminCaptcha.question.match(/(\d+) \+ (\d+)/).slice(1).reduce((sum, item) => sum + Number(item), 0));
+  const adminAnswer = adminCaptcha.demoAnswer || "7B2K9";
   const adminCode = await fetch(`${baseUrl}/api/auth/request-code`, {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ identifier: "admin", captchaId: adminCaptcha.captchaId, captchaAnswer: adminAnswer })
   }).then((response) => response.json());

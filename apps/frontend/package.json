@@ -8,8 +8,8 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node -e \"console.log('No frontend tests implemented yet')\"",
-    "lint": "eslint src --ext .js,.jsx",
+    "test": "node --test",
+    "lint": "eslint src",
     "clean": "node -e \"console.log('No frontend clean step configured yet')\""
   },
   "dependencies": {
