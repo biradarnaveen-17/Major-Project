@@ -373,6 +373,17 @@ export default function BhoomiApp() {
     if (loadResult.status === "fulfilled") setLoadReport(loadResult.value);
   }
 
+  async function refreshAppData() {
+  const tasks = [loadPortalData()];
+
+  if (session?.user?.role === "admin") {
+    tasks.push(loadAllUsers());
+    tasks.push(loadOfficers());
+  }
+
+  await Promise.allSettled(tasks);
+}
+
   async function appendAudit(action, landId, detail) {
     try { const entry = await api("/api/audit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, landId, actor: accountRole, detail }) }); setAudit((current) => [entry, ...current]); } catch { /* Optional audit API error swallow */ }
   }
@@ -405,8 +416,7 @@ export default function BhoomiApp() {
         body: JSON.stringify({ status: nextStatus })
       });
       setMessage(res.message);
-      loadAllUsers();
-      loadOfficers();
+await refreshAppData();
     } catch (err) {
       setMessage(err.message);
     }
@@ -507,23 +517,46 @@ export default function BhoomiApp() {
     } catch (error) { setMessage(error.shortMessage || error.message); }
   }
 
-async function signIn(authResult) {
+async function signIn(authResult, options = {}) {
   const role = authResult.user.role || "citizen";
   const portalRole = PORTALS[role] ? role : "citizen";
 
-  // 1. Sign in immediately — don't wait for blockchain initialization
-  setSession({ ...authResult, signedInAt: new Date().toISOString() });
-  sessionStorage.setItem("bhoomichain_session", JSON.stringify(authResult));
-  setView(PORTALS[portalRole].defaultView);
-  window.location.hash = `/${portalRole}`;
+  // Restore the page the user was on before refresh
+  const savedView = options.restoreView
+    ? sessionStorage.getItem("bhoomichain_view")
+    : null;
 
-  // 2. Initialize blockchain wallet in the background
+  const nextView =
+    savedView && PORTALS[portalRole].views.includes(savedView)
+      ? savedView
+      : PORTALS[portalRole].defaultView;
+
+  // Sign in immediately — don't wait for blockchain
+  setSession({
+    ...authResult,
+    signedInAt: new Date().toISOString()
+  });
+
+  sessionStorage.setItem(
+    "bhoomichain_session",
+    JSON.stringify(authResult)
+  );
+
+  setView(nextView);
+  sessionStorage.setItem("bhoomichain_view", nextView);
+
+  window.location.hash = `/${portalRole}/${nextView}`;
+
+  // Initialize blockchain in background
   useDemoAccount(PORTALS[portalRole].account, authResult.user)
     .catch((error) => {
-      console.warn("Background blockchain initialization:", error.message);
+      console.warn(
+        "Background blockchain initialization:",
+        error.message
+      );
     });
 
-  // 3. Load farmer information in the background
+  // Load farmer information in background
   if (["citizen", "farmer", "purchaser"].includes(role)) {
     const activeWallet =
       authResult.user.username === "sudeep"
@@ -544,7 +577,9 @@ async function signIn(authResult) {
       verified: true
     });
 
-    api(`/api/farmers?email=${encodeURIComponent(authResult.user.email)}`)
+    api(
+      `/api/farmers?email=${encodeURIComponent(authResult.user.email)}`
+    )
       .then((savedFarmers) => {
         if (savedFarmers[0]) {
           setFarmer((prev) => ({
@@ -554,74 +589,17 @@ async function signIn(authResult) {
           }));
         }
       })
-      .catch(() => {
-        // Farmer data is optional during initial login.
-      });
+      .catch(() => {});
   }
 
-  // 4. Admin data can also load in background
-  if (role === "admin") {
-    loadOfficers(authResult.token).catch(() => {});
-  }
-}async function signIn(authResult) {
-  const role = authResult.user.role || "citizen";
-  const portalRole = PORTALS[role] ? role : "citizen";
-
-  // 1. Sign in immediately — don't wait for blockchain initialization
-  setSession({ ...authResult, signedInAt: new Date().toISOString() });
-  sessionStorage.setItem("bhoomichain_session", JSON.stringify(authResult));
-  setView(PORTALS[portalRole].defaultView);
-  window.location.hash = `/${portalRole}`;
-
-  // 2. Initialize blockchain wallet in the background
-  useDemoAccount(PORTALS[portalRole].account, authResult.user)
-    .catch((error) => {
-      console.warn("Background blockchain initialization:", error.message);
-    });
-
-  // 3. Load farmer information in the background
-  if (["citizen", "farmer", "purchaser"].includes(role)) {
-    const activeWallet =
-      authResult.user.username === "sudeep"
-        ? "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-        : authResult.user.username === "raj" ||
-          authResult.user.username === "boss"
-        ? "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
-        : role === "farmer"
-        ? DEMO_ACCOUNTS.farmer
-        : DEMO_ACCOUNTS.buyer;
-
-    setFarmer({
-      id: authResult.user.id,
-      name: authResult.user.fullName,
-      email: authResult.user.email,
-      mobile: authResult.user.mobile,
-      walletAddress: activeWallet,
-      verified: true
-    });
-
-    api(`/api/farmers?email=${encodeURIComponent(authResult.user.email)}`)
-      .then((savedFarmers) => {
-        if (savedFarmers[0]) {
-          setFarmer((prev) => ({
-            ...prev,
-            ...savedFarmers[0],
-            walletAddress: activeWallet
-          }));
-        }
-      })
-      .catch(() => {
-        // Farmer data is optional during initial login.
-      });
-  }
-
-  // 4. Admin data can also load in background
+  // Admin data in background
   if (role === "admin") {
     loadOfficers(authResult.token).catch(() => {});
   }
 }
-
-  function signOut() { sessionStorage.removeItem("bhoomichain_session"); setSession(null); setWallet(null); setIsRegistrar(null); setFarmer(null); setOfficers([]); setView("overview"); setMessage("Choose a portal to continue."); }
+  function signOut() {
+  sessionStorage.removeItem("bhoomichain_session");
+  sessionStorage.removeItem("bhoomichain_view"); setSession(null); setWallet(null); setIsRegistrar(null); setFarmer(null); setOfficers([]); setView("overview"); setMessage("Choose a portal to continue."); }
 
   function resolveName(addr) {
     if (!addr || addr === ethers.ZeroAddress) return "None";
@@ -658,12 +636,19 @@ async function signIn(authResult) {
     if (savedSession) {
       try {
         const parsed = JSON.parse(savedSession);
-        if (parsed?.user?.role) signIn(parsed);
+        if (parsed?.user?.role) {
+         signIn(parsed, { restoreView: true });
+    }
       } catch { sessionStorage.removeItem("bhoomichain_session"); }
     }
   }, []);
 
   useEffect(() => { if (portal && !portal.views.includes(view)) setView(portal.defaultView); }, [portal, view]);
+  useEffect(() => {
+  if (session?.user?.role && portal?.views?.includes(view)) {
+    sessionStorage.setItem("bhoomichain_view", view);
+  }
+}, [session, portal, view]);
 
   useEffect(() => {
     let active = true;
@@ -1223,7 +1208,8 @@ async function signIn(authResult) {
 
   async function createDocument(event) {
     event.preventDefault();
-    try { const item = await api("/api/documents", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(documentForm) }); setDocuments((current) => [item, ...current]); setDocumentForm((current) => ({ ...current, reference: "", hash: "" })); setMessage("Document reference saved for registrar review."); loadPortalData(); } catch (error) { setMessage(error.message); }
+    try { const item = await api("/api/documents", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(documentForm) }); setDocuments((current) => [item, ...current]); setDocumentForm((current) => ({ ...current, reference: "", hash: "" })); setMessage("Document reference saved for registrar review.");
+await refreshAppData(); } catch (error) { setMessage(error.message); }
   }
 
   async function submitLandRequest(event) {
@@ -1333,7 +1319,11 @@ async function signIn(authResult) {
         </div>
         <nav>
           {visibleNav.map(([id, label], index) => (
-            <button key={id} className={view === id ? "nav-item active" : "nav-item"} onClick={() => setView(id)}>
+            <button key={id} className={view === id ? "nav-item active" : "nav-item"} onClick={() => {
+  setView(id);
+  sessionStorage.setItem("bhoomichain_view", id);
+  window.location.hash = `/${session?.user?.role || "citizen"}/${id}`;
+}}>
               <span>0{index + 1}</span>{label}
             </button>
           ))}
