@@ -414,6 +414,45 @@ app.post("/api/benchmarks/run-load-test", (_request, response) => {
   }
 });
 
+app.post("/api/benchmarks/realtime-load", (request, response) => {
+  const { generatedAt, runId, loads, results } = request.body || {};
+  if (!Array.isArray(loads) || !Array.isArray(results) || !results.length) {
+    return response.status(400).json({ message: "loads[] and results[] are required." });
+  }
+  const report = {
+    generatedAt: generatedAt || new Date().toISOString(),
+    runId: String(runId || crypto.randomUUID()),
+    isRealtime: true,
+    loads: loads.map(Number).filter((value) => value > 0),
+    results
+  };
+  try {
+    fs.mkdirSync(path.dirname(loadReportPath), { recursive: true });
+    fs.writeFileSync(loadReportPath, `${JSON.stringify(report, null, 2)}\\n`);
+    state.runs.unshift({
+      id: report.runId,
+      name: "Real-Time EVM Load Test",
+      type: "realtime",
+      results: report.results,
+      loads: report.loads,
+      generatedAt: report.generatedAt,
+      createdAt: new Date().toISOString()
+    });
+    state.runs = state.runs.slice(0, 50);
+    addAudit({
+      action: "Saved Real-Time EVM Load Test",
+      landId: "Scalability",
+      actor: "System Administrator",
+      detail: `Fresh blockchain workload results saved for ${report.loads.join(", ")} transactions (run ${report.runId})`
+    });
+    saveState();
+    return response.status(201).json(report);
+  } catch (error) {
+    console.error("Realtime benchmark persistence error:", error);
+    return response.status(500).json({ message: "Failed to save real-time benchmark: " + error.message });
+  }
+});
+
 app.get("/api/benchmarks/runs", (_request, response) => response.json(state.runs));
 
 app.post("/api/benchmarks/runs", (request, response) => {
