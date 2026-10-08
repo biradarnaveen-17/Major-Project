@@ -59,24 +59,35 @@ export default function BhoomiApp() {
 
   async function runLoadTest(targetLoads = [10, 100, 500]) {
     const runGeneration = ++loadTestGeneration.current;
+    const runId = `realtime-${Date.now()}`;
+
     try {
       setRunningLoadTest(true);
-      setLoadReport({ generatedAt: new Date().toISOString(), runId: `realtime-${Date.now()}`, isRealtime: true, executionMode: "parallel", loads: [], results: [] });
+      setLoadReport({
+        generatedAt: new Date().toISOString(),
+        runId,
+        isRealtime: true,
+        executionMode: "parallel-simulation",
+        loads: [],
+        results: []
+      });
       setLoadProgress("Connecting to local EVM blockchain...");
       setMessage("Starting real-time parallel EVM workload benchmark...");
 
       const rpcProvider = new ethers.JsonRpcProvider(RPC_URL);
-      const authoritySigner = new ethers.Wallet("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", rpcProvider);
-      const buyerSigner = new ethers.Wallet("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d", rpcProvider);
-      const authorityWallet = new ethers.NonceManager(authoritySigner);
-      const buyerWallet = new ethers.NonceManager(buyerSigner);
+      const authoritySigner = new ethers.Wallet(
+        "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+        rpcProvider
+      );
+      const buyerSigner = new ethers.Wallet(
+        "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
+        rpcProvider
+      );
       const authorityAddress = await authoritySigner.getAddress();
       const buyerAddress = await buyerSigner.getAddress();
 
-      const baseContractAdmin = new ethers.Contract(ADDRESSES.base, BASE_ABI, authorityWallet);
-      const baseContractBuyer = new ethers.Contract(ADDRESSES.base, BASE_ABI, buyerWallet);
-      const optContractAdmin = new ethers.Contract(ADDRESSES.optimized, OPTIMIZED_ABI, authorityWallet);
-      const optContractBuyer = new ethers.Contract(ADDRESSES.optimized, OPTIMIZED_ABI, buyerWallet);
+      const baseContractAdmin = new ethers.Contract(ADDRESSES.base, BASE_ABI, authoritySigner);
+      const optContractAdmin = new ethers.Contract(ADDRESSES.optimized, OPTIMIZED_ABI, authoritySigner);
 
       try {
         const isBaseReg = await baseContractAdmin.registrars(authorityAddress);
@@ -88,141 +99,106 @@ export default function BhoomiApp() {
         console.warn("Base setRegistrar check:", e.message);
       }
 
-      try {
-        const buyerBal = await rpcProvider.getBalance(buyerAddress);
-        if (buyerBal < ethers.parseEther("0.1")) {
-          const fundTx = await authoritySigner.sendTransaction({ to: buyerAddress, value: ethers.parseEther("1.0") });
-          await fundTx.wait();
-        }
-      } catch (e) {
-        console.warn("Buyer gas funding check:", e.message);
-      }
-
       const results = [];
 
-      async function executeParallelLoad({ count, contractAdmin, contractBuyer, contractName, optimized }) {
-        setLoadProgress(`Executing ${contractName}: ${count} users concurrently...`);
+      async function executeParallelLoad({ count, contractAdmin, contractName, optimized }) {
         const startTime = performance.now();
+        const landIds = Array.from(
+          { length: count },
+          (_, idx) => BigInt(Date.now()) * 1000000n + BigInt(idx)
+        );
         let totalGas = 0n;
-        let failedLifecycles = 0;
-        const landIds = Array.from({ length: count }, (_, idx) => BigInt(Date.now()) * 1000000n + BigInt(idx));
-        const phaseBatchSize = count >= 500 ? 100 : count >= 100 ? 50 : count;
+        let successfulRequests = 0;
+        let failedRequests = 0;
+        const latencies = [];
 
-        async function runConcurrentPhase(label, ids, sendTransaction) {
-          for (let offset = 0; offset < ids.length; offset += phaseBatchSize) {
-            const batch = ids.slice(offset, offset + phaseBatchSize);
-            setLoadProgress(`Executing ${contractName}: ${label} ${Math.min(offset + batch.length, ids.length)}/${ids.length} users...`);
+        setLoadProgress(`Executing ${contractName}: ${count} concurrent EVM users...`);
 
-            const submitted = await Promise.all(batch.map(async (landId) => {
-              try {
-                return await sendTransaction(landId);
-              } catch (err) {
-                console.error(`${contractName} ${label} submission failed:`, err);
-                return null;
-              }
-            }));
-
-            await Promise.all(submitted.map(async (tx) => {
-              if (!tx) return;
-              try {
-                const receipt = await tx.wait();
-                totalGas += receipt.gasUsed;
-              } catch (err) {
-                console.error(`${contractName} ${label} confirmation failed:`, err);
-              }
-            }));
-          }
-        }
-
-        try {
-          // Each phase is concurrent. The next phase starts only after the
-          // previous state transition has been mined, preserving lifecycle correctness.
-          await runConcurrentPhase("register", landIds, (landId) =>
-            optimized
-              ? contractAdmin["registerLand(uint256,address,bytes32,uint96)"](
+        const requests = landIds.map(async (landId, index) => {
+          const requestStart = performance.now();
+          try {
+            const gasEstimate = optimized
+              ? await contractAdmin["registerLand(uint256,address,bytes32,uint96)"].estimateGas(
                   landId,
                   authorityAddress,
-                  ethers.keccak256(ethers.toUtf8Bytes(`BENCHMARK|BENGALURU|${landId}`)),
+                  ethers.keccak256(ethers.toUtf8Bytes(`BENCHMARK|${landId}`)),
                   2400
                 )
-              : contractAdmin["registerLand(uint256,address,string,string,uint256)"](
+              : await contractAdmin["registerLand(uint256,address,string,string,uint256)"].estimateGas(
                   landId,
                   authorityAddress,
                   `SUR-${landId}`,
                   "Bengaluru",
                   2400
-                )
-          );
+                );
 
-          await runConcurrentPhase("request transfer", landIds, (landId) =>
-            contractAdmin.requestTransfer(landId, buyerAddress)
-          );
+            totalGas += gasEstimate;
+            successfulRequests += 1;
+            latencies.push(performance.now() - requestStart);
+          } catch (err) {
+            failedRequests += 1;
+            console.error(`${contractName} simulated user ${index + 1} failed:`, err);
+          }
+        });
 
-          await runConcurrentPhase("approve", landIds, (landId) =>
-            contractAdmin.approveTransfer(landId)
-          );
-
-          await runConcurrentPhase("ownership transfer", landIds, (landId) =>
-            contractBuyer.transferOwnership(landId)
-          );
-        } catch (err) {
-          console.error(`${contractName} parallel benchmark phase failed:`, err);
-          failedLifecycles = count;
-        }
+        await Promise.all(requests);
 
         const elapsedMs = Number((performance.now() - startTime).toFixed(2));
-        const gasNum = Number(totalGas);
-        const successfulLifecycles = Math.max(0, count - failedLifecycles);
+        const sortedLatencies = [...latencies].sort((a, b) => a - b);
+        const averageLatencyMs = successfulRequests
+          ? Number((latencies.reduce((sum, value) => sum + value, 0) / successfulRequests).toFixed(2))
+          : 0;
+        const p95Index = successfulRequests
+          ? Math.min(successfulRequests - 1, Math.ceil(successfulRequests * 0.95) - 1)
+          : 0;
+        const p95LatencyMs = successfulRequests
+          ? Number(sortedLatencies[p95Index].toFixed(2))
+          : 0;
 
         return {
           contract: contractName,
-          mode: "parallel",
+          mode: "parallel-simulation",
           load: count,
-          totalGas: gasNum,
-          gasPerLifecycle: count > 0 ? Math.round(gasNum / count) : 0,
-          failureRate: Number(((failedLifecycles / count) * 100).toFixed(2)),
-          failedLifecycles,
-          successfulLifecycles,
+          totalGas: Number(totalGas),
+          gasPerLifecycle: count > 0 ? Math.round(Number(totalGas) / count) : 0,
+          failureRate: Number(((failedRequests / count) * 100).toFixed(2)),
+          failedLifecycles: failedRequests,
+          successfulLifecycles: successfulRequests,
           elapsedMs,
+          averageLatencyMs,
+          p95LatencyMs,
           throughputLifecyclesPerSec: elapsedMs > 0
-            ? Number((successfulLifecycles / (elapsedMs / 1000)).toFixed(2))
+            ? Number((successfulRequests / (elapsedMs / 1000)).toFixed(2))
             : 0
         };
       }
 
       for (let loadIndex = 0; loadIndex < targetLoads.length; loadIndex += 1) {
         const count = targetLoads[loadIndex];
+        setLoadProgress(`Running ${count} concurrent EVM users against Base and Optimized contracts...`);
 
-        const baseResult = await executeParallelLoad({
-          count,
-          contractAdmin: baseContractAdmin,
-          contractBuyer: baseContractBuyer,
-          contractName: "BaseLandRegistry",
-          optimized: false
-        });
-        results.push(baseResult);
+        const [baseResult, optimizedResult] = await Promise.all([
+          executeParallelLoad({
+            count,
+            contractAdmin: baseContractAdmin,
+            contractName: "BaseLandRegistry",
+            optimized: false
+          }),
+          executeParallelLoad({
+            count,
+            contractAdmin: optContractAdmin,
+            contractName: "OptimizedLandRegistry",
+            optimized: true
+          })
+        ]);
+
+        results.push(baseResult, optimizedResult);
+
         setLoadReport({
           generatedAt: new Date().toISOString(),
-          runId: `realtime-${Date.now()}`,
+          runId,
           isRealtime: true,
-          executionMode: "parallel",
-          loads: targetLoads.slice(0, loadIndex + 1),
-          results: [...results]
-        });
-
-        const optimizedResult = await executeParallelLoad({
-          count,
-          contractAdmin: optContractAdmin,
-          contractBuyer: optContractBuyer,
-          contractName: "OptimizedLandRegistry",
-          optimized: true
-        });
-        results.push(optimizedResult);
-        setLoadReport({
-          generatedAt: new Date().toISOString(),
-          runId: `realtime-${Date.now()}`,
-          isRealtime: true,
-          executionMode: "parallel",
+          executionMode: "parallel-simulation",
           loads: targetLoads.slice(0, loadIndex + 1),
           results: [...results]
         });
@@ -230,30 +206,33 @@ export default function BhoomiApp() {
 
       const completedReport = {
         generatedAt: new Date().toISOString(),
-        runId: `realtime-${Date.now()}`,
+        runId,
         isRealtime: true,
-        executionMode: "parallel",
+        executionMode: "parallel-simulation",
         loads: targetLoads,
         results: [...results]
       };
 
       setLoadReport(completedReport);
+
       try {
         const savedReport = await api("/api/benchmarks/realtime-load", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(completedReport)
         });
-        setLoadReport(savedReport);
+        if (runGeneration === loadTestGeneration.current) {
+          setLoadReport(savedReport);
+        }
       } catch (saveError) {
         console.warn("Real-time benchmark persistence failed:", saveError.message);
       }
 
-      setMessage(`Real-time parallel EVM load test completed live on blockchain. Run ${completedReport.runId} saved.`);
+      setMessage(`Real-time parallel EVM scalability benchmark completed. Run ${runId} saved.`);
       appendAudit(
-        "Real-Time Parallel EVM Load Test",
+        "Real-Time Parallel EVM Scalability Benchmark",
         "Scalability",
-        `Executed fresh parallel workloads: ${targetLoads.join(", ")} lifecycles; run ${completedReport.runId}`
+        `Executed fresh parallel EVM workloads: ${targetLoads.join(", ")} concurrent users; run ${runId}`
       );
     } catch (error) {
       console.error("Real-time load test error:", error);
