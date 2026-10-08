@@ -36,7 +36,8 @@ function initialState() {
     farmers: [],
     landRequests: [],
     documents: [],
-    audit: []
+    audit: [],
+    transactions: []
   };
 }
 
@@ -50,6 +51,7 @@ function readState() {
       data.landRequests = [];
       data.documents = [];
       data.audit = [];
+      data.transactions = data.transactions || [];
       return data;
     }
   } catch (error) {
@@ -66,6 +68,7 @@ state.farmers ||= [];
 state.landRequests ||= [];
 state.documents ||= [];
 state.audit ||= [];
+state.transactions ||= [];
 
 const adminUser = state.users.find((u) => u.role === "admin" || u.username === "admin");
 if (adminUser) adminUser.email = "rcbforevervk1800@gmail.com";
@@ -1025,6 +1028,32 @@ app.patch("/api/documents/:id/verify", (request, response) => {
   addAudit({ action: "Document verified", landId: document.landId, actor: "Registrar", detail: `${document.category}: ${document.reference}` });
   saveState();
   return response.json(document);
+});
+
+app.get("/api/transactions", (_request, response) => response.json(state.transactions || []));
+
+app.post("/api/transactions", (request, response) => {
+  const { operation, variant, contractAddress, contractName, gas, cost, block, hash, landId, timestamp } = request.body || {};
+  if (!String(operation || "").trim() || !String(hash || "").trim()) {
+    return response.status(400).json({ message: "operation and transaction hash are required" });
+  }
+  const entry = {
+    id: crypto.randomUUID(),
+    operation: String(operation).trim(),
+    variant: variant === "base" ? "base" : "optimized",
+    contractAddress: String(contractAddress || "").trim(),
+    contractName: String(contractName || "").trim(),
+    gas: String(gas || "0"),
+    cost: String(cost || "0"),
+    block: Number(block || 0),
+    hash: String(hash).trim(),
+    landId: String(landId || ""),
+    timestamp: timestamp || new Date().toISOString()
+  };
+  state.transactions.unshift(entry);
+  state.transactions = state.transactions.slice(0, 200);
+  saveState();
+  return response.status(201).json(entry);
 });
 
 app.get("/api/audit", (_request, response) => response.json(state.audit));
