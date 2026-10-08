@@ -220,8 +220,26 @@ export default function BhoomiApp() {
         });
       }
 
-      setMessage("Real-time EVM load test completed live on blockchain!");
-      appendAudit("Real-Time EVM Load Test", "Scalability", `Executed real-time workloads: ${targetLoads.join(", ")} txns`);
+      const completedReport = {
+        generatedAt: new Date().toISOString(),
+        runId: `realtime-${Date.now()}`,
+        isRealtime: true,
+        loads: targetLoads,
+        results: [...results]
+      };
+      setLoadReport(completedReport);
+      try {
+        const savedReport = await api("/api/benchmarks/realtime-load", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(completedReport)
+        });
+        setLoadReport(savedReport);
+      } catch (saveError) {
+        console.warn("Real-time benchmark persistence failed:", saveError.message);
+      }
+      setMessage(`Real-time EVM load test completed live on blockchain. Run ${completedReport.runId} saved.`);
+      appendAudit("Real-Time EVM Load Test", "Scalability", `Executed fresh real-time workloads: ${targetLoads.join(", ")} txns; run ${completedReport.runId}`);
     } catch (error) {
       console.error("Real-time load test error:", error);
       setMessage("Load test error: " + error.message);
