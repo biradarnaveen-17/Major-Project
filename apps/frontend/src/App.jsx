@@ -358,17 +358,7 @@ export default function BhoomiApp() {
   }
 
   async function loadPortalData() {
-    const results = await Promise.allSettled([
-      api("/api/dashboard"),
-      api("/api/documents"),
-      api("/api/audit"),
-      api("/api/benchmarks/latest"),
-      api("/api/land-requests"),
-      api("/api/purchasers"),
-      api("/api/benchmarks/loads"),
-      api("/api/transactions")
-    ]);
-    const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult, loadResult, transactionResult] = results;
+    const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult, loadResult] = await Promise.allSettled([api("/api/dashboard"), api("/api/documents"), api("/api/audit"), api("/api/reports"), api("/api/land-requests"), api("/api/purchasers"), api("/api/load-report")]);
     if (dashboardResult.status === "fulfilled") setPortalStats(dashboardResult.value);
     if (documentResult.status === "fulfilled") setDocuments(documentResult.value);
     if (auditResult.status === "fulfilled") setAudit(auditResult.value);
@@ -376,7 +366,6 @@ export default function BhoomiApp() {
     if (requestResult.status === "fulfilled") setLandRequests(requestResult.value);
     if (purchaserResult.status === "fulfilled") setPurchasers(purchaserResult.value);
     if (loadResult.status === "fulfilled") setLoadReport(loadResult.value);
-    if (transactionResult.status === "fulfilled") setLiveTransactions(transactionResult.value);
   }
 
   async function refreshAppData() {
@@ -1125,24 +1114,21 @@ export default function BhoomiApp() {
       const gasPrice = receipt.gasPrice || 0n;
       const newGas = Number(receipt.gasUsed);
       const opName = action === "request" ? "requestTransfer" : action === "approve" ? "approveTransfer" : action === "transfer" ? "transferOwnership" : action === "register" ? "registerLand" : action;
-      const transactionLog = {
-        operation: opName,
-        variant,
-        contractAddress: address,
-        contractName: variant === "optimized" ? "OptimizedLandRegistry" : "BaseLandRegistry",
-        gas: receipt.gasUsed.toString(),
-        cost: ethers.formatEther(receipt.gasUsed * (gasPrice || 1000000000n)),
-        block: receipt.blockNumber,
-        hash: tx.hash,
-        landId: form.landId,
-        timestamp: new Date().toISOString()
-      };
-      setLiveTransactions((current) => [transactionLog, ...current].filter((item, index, all) => all.findIndex((x) => x.hash === item.hash) === index).slice(0, 50));
-      api("/api/transactions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(transactionLog)
-      }).catch((error) => console.warn("Transaction audit persistence failed:", error.message));
+      setLiveTransactions((current) => [
+        {
+          operation: opName,
+          variant,
+          contractAddress: address,
+          contractName: variant === "optimized" ? "OptimizedLandRegistry" : "BaseLandRegistry",
+          gas: receipt.gasUsed.toString(),
+          cost: ethers.formatEther(receipt.gasUsed * (gasPrice || 1000000000n)),
+          block: receipt.blockNumber,
+          hash: tx.hash,
+          landId: form.landId,
+          timestamp: new Date().toLocaleTimeString()
+        },
+        ...current
+      ].slice(0, 50));
       setReport((currentReport) => {
         if (!currentReport) return currentReport;
         const oldRows = currentReport.rows || currentReport.comparison || [];
