@@ -101,57 +101,73 @@ export default function BhoomiApp() {
       const results = [];
 
       async function executeParallelLoad({ count, contractAdmin, contractBuyer, contractName, optimized }) {
-        setLoadProgress(`Executing ${contractName} with ${count} concurrent users...`);
+        setLoadProgress(`Executing ${contractName}: ${count} users concurrently...`);
         const startTime = performance.now();
         let totalGas = 0n;
         let failedLifecycles = 0;
         const landIds = Array.from({ length: count }, (_, idx) => BigInt(Date.now()) * 1000000n + BigInt(idx));
+        const phaseBatchSize = count >= 500 ? 100 : count >= 100 ? 50 : count;
 
-        async function executeLifecycle(landId, idx) {
-          try {
-            const tx1 = optimized
-              ? await contractAdmin["registerLand(uint256,address,bytes32,uint96)"](
+        async function runConcurrentPhase(label, ids, sendTransaction) {
+          for (let offset = 0; offset < ids.length; offset += phaseBatchSize) {
+            const batch = ids.slice(offset, offset + phaseBatchSize);
+            setLoadProgress(`Executing ${contractName}: ${label} ${Math.min(offset + batch.length, ids.length)}/${ids.length} users...`);
+
+            const submitted = await Promise.all(batch.map(async (landId) => {
+              try {
+                return await sendTransaction(landId);
+              } catch (err) {
+                console.error(`${contractName} ${label} submission failed:`, err);
+                return null;
+              }
+            }));
+
+            await Promise.all(submitted.map(async (tx) => {
+              if (!tx) return;
+              try {
+                const receipt = await tx.wait();
+                totalGas += receipt.gasUsed;
+              } catch (err) {
+                console.error(`${contractName} ${label} confirmation failed:`, err);
+              }
+            }));
+          }
+        }
+
+        try {
+          // Each phase is concurrent. The next phase starts only after the
+          // previous state transition has been mined, preserving lifecycle correctness.
+          await runConcurrentPhase("register", landIds, (landId) =>
+            optimized
+              ? contractAdmin["registerLand(uint256,address,bytes32,uint96)"](
                   landId,
                   authorityAddress,
                   ethers.keccak256(ethers.toUtf8Bytes(`BENCHMARK|BENGALURU|${landId}`)),
                   2400
                 )
-              : await contractAdmin["registerLand(uint256,address,string,string,uint256)"](
+              : contractAdmin["registerLand(uint256,address,string,string,uint256)"](
                   landId,
                   authorityAddress,
                   `SUR-${landId}`,
                   "Bengaluru",
                   2400
-                );
-            const r1 = await tx1.wait();
-            totalGas += r1.gasUsed;
-
-            const tx2 = await contractAdmin.requestTransfer(landId, buyerAddress);
-            const r2 = await tx2.wait();
-            totalGas += r2.gasUsed;
-
-            const tx3 = await contractAdmin.approveTransfer(landId);
-            const r3 = await tx3.wait();
-            totalGas += r3.gasUsed;
-
-            const tx4 = await contractBuyer.transferOwnership(landId);
-            const r4 = await tx4.wait();
-            totalGas += r4.gasUsed;
-          } catch (err) {
-            failedLifecycles += 1;
-            console.error(`${contractName} lifecycle ${idx} failed:`, err);
-          }
-        }
-
-        // Submit all users concurrently. The EVM/provider decides how transactions
-        // are mined; no chain-specific mining RPC is required.
-        const concurrency = count >= 500 ? 50 : count >= 100 ? 25 : count;
-        for (let offset = 0; offset < landIds.length; offset += concurrency) {
-          const batch = landIds.slice(offset, offset + concurrency);
-          await Promise.all(batch.map((landId, localIndex) => executeLifecycle(landId, offset + localIndex)));
-          setLoadProgress(
-            `Executing ${contractName}: ${Math.min(offset + batch.length, count)}/${count} concurrent users...`
+                )
           );
+
+          await runConcurrentPhase("request transfer", landIds, (landId) =>
+            contractAdmin.requestTransfer(landId, buyerAddress)
+          );
+
+          await runConcurrentPhase("approve", landIds, (landId) =>
+            contractAdmin.approveTransfer(landId)
+          );
+
+          await runConcurrentPhase("ownership transfer", landIds, (landId) =>
+            contractBuyer.transferOwnership(landId)
+          );
+        } catch (err) {
+          console.error(`${contractName} parallel benchmark phase failed:`, err);
+          failedLifecycles = count;
         }
 
         const elapsedMs = Number((performance.now() - startTime).toFixed(2));
@@ -378,14 +394,25 @@ export default function BhoomiApp() {
 
   async function loadPortalData() {
     const requestGeneration = loadTestGeneration.current;
-    const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult, loadResult, transactionResult] = await Promise.allSettled([api("/api/dashboard"), api("/api/documents"), api("/api/audit"), api("/api/reports"), api("/api/land-requests"), api("/api/purchasers"), api("/api/load-report"), api("/api/transactions")]);
+    const shouldLoadPersistedBenchmark = view !== "loadtest" && !runningLoadTest;
+    const requests = [
+      api("/api/dashboard"),
+      api("/api/documents"),
+      api("/api/audit"),
+      api("/api/reports"),
+      api("/api/land-requests"),
+      api("/api/purchasers"),
+      shouldLoadPersistedBenchmark ? api("/api/load-report") : Promise.resolve(null),
+      api("/api/transactions")
+    ];
+    const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult, loadResult, transactionResult] = await Promise.allSettled(requests);
     if (dashboardResult.status === "fulfilled") setPortalStats(dashboardResult.value);
     if (documentResult.status === "fulfilled") setDocuments(documentResult.value);
     if (auditResult.status === "fulfilled") setAudit(auditResult.value);
     if (reportResult.status === "fulfilled") setReport(reportResult.value);
     if (requestResult.status === "fulfilled") setLandRequests(requestResult.value);
     if (purchaserResult.status === "fulfilled") setPurchasers(purchaserResult.value);
-    if (loadResult.status === "fulfilled" && requestGeneration === loadTestGeneration.current) setLoadReport(loadResult.value);
+    if (shouldLoadPersistedBenchmark && loadResult.status === "fulfilled" && loadResult.value && requestGeneration === loadTestGeneration.current && !runningLoadTest) setLoadReport(loadResult.value);
     if (transactionResult.status === "fulfilled") setLiveTransactions(transactionResult.value);
   }
 
