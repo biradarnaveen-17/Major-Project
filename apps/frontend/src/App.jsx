@@ -59,13 +59,17 @@ export default function BhoomiApp() {
   async function runLoadTest(targetLoads = [10, 100, 500]) {
     try {
       setRunningLoadTest(true);
-      setLoadReport({ generatedAt: new Date().toISOString(), isRealtime: true, loads: [], results: [] });
+      setLoadReport({ generatedAt: new Date().toISOString(), runId: `realtime-${Date.now()}`, isRealtime: true, executionMode: "parallel", loads: [], results: [] });
       setLoadProgress("Connecting to local EVM blockchain...");
-      setMessage("Starting real-time EVM workload benchmark...");
+      setMessage("Starting real-time parallel EVM workload benchmark...");
 
       const rpcProvider = new ethers.JsonRpcProvider(RPC_URL);
-      const authorityWallet = new ethers.Wallet("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", rpcProvider);
-      const buyerWallet = new ethers.Wallet("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d", rpcProvider);
+      const authoritySigner = new ethers.Wallet("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", rpcProvider);
+      const buyerSigner = new ethers.Wallet("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d", rpcProvider);
+      const authorityWallet = new ethers.NonceManager(authoritySigner);
+      const buyerWallet = new ethers.NonceManager(buyerSigner);
+      const authorityAddress = await authoritySigner.getAddress();
+      const buyerAddress = await buyerSigner.getAddress();
 
       const baseContractAdmin = new ethers.Contract(ADDRESSES.base, BASE_ABI, authorityWallet);
       const baseContractBuyer = new ethers.Contract(ADDRESSES.base, BASE_ABI, buyerWallet);
@@ -73,9 +77,9 @@ export default function BhoomiApp() {
       const optContractBuyer = new ethers.Contract(ADDRESSES.optimized, OPTIMIZED_ABI, buyerWallet);
 
       try {
-        const isBaseReg = await baseContractAdmin.registrars(authorityWallet.address);
+        const isBaseReg = await baseContractAdmin.registrars(authorityAddress);
         if (!isBaseReg) {
-          const setRegTx = await baseContractAdmin.setRegistrar(authorityWallet.address, true);
+          const setRegTx = await baseContractAdmin.setRegistrar(authorityAddress, true);
           await setRegTx.wait();
         }
       } catch (e) {
@@ -83,9 +87,9 @@ export default function BhoomiApp() {
       }
 
       try {
-        const buyerBal = await rpcProvider.getBalance(buyerWallet.address);
+        const buyerBal = await rpcProvider.getBalance(buyerAddress);
         if (buyerBal < ethers.parseEther("0.1")) {
-          const fundTx = await authorityWallet.sendTransaction({ to: buyerWallet.address, value: ethers.parseEther("1.0") });
+          const fundTx = await authoritySigner.sendTransaction({ to: buyerAddress, value: ethers.parseEther("1.0") });
           await fundTx.wait();
         }
       } catch (e) {
@@ -93,129 +97,104 @@ export default function BhoomiApp() {
       }
 
       const results = [];
-      const totalSteps = targetLoads.length * 2;
 
-      for (let index = 0; index < targetLoads.length; index++) {
-        const count = targetLoads[index];
-        const batchSize = count > 50 ? 10 : 5;
+      async function executeParallelLoad({ count, contractAdmin, contractBuyer, contractName, optimized }) {
+        setLoadProgress(`Executing ${contractName} with ${count} concurrent land lifecycles...`);
+        const startTime = performance.now();
+        let totalGas = 0n;
+        let failedLifecycles = 0;
 
-        setLoadProgress(`[${results.length + 1}/${totalSteps}] Executing Base Contract (${count} txns)...`);
-        const baseStart = performance.now();
-        let baseTotalGas = 0n;
-        let baseFailures = 0;
-
-        for (let i = 0; i < count; i += batchSize) {
-          const chunk = Array.from({ length: Math.min(batchSize, count - i) }, (_, offset) => i + offset);
-          await Promise.all(
-            chunk.map(async (idx) => {
-              const landId = BigInt(Date.now()) * 10000n + BigInt(idx) + BigInt(Math.floor(Math.random() * 9000));
-              try {
-                const tx1 = await baseContractAdmin["registerLand(uint256,address,string,string,uint256)"](
+        const lifecycleJobs = Array.from({ length: count }, (_, idx) => (async () => {
+          const landId = BigInt(Date.now()) * 1000000n + BigInt(idx);
+          try {
+            const tx1 = optimized
+              ? await contractAdmin["registerLand(uint256,address,bytes32,uint96)"](
                   landId,
-                  authorityWallet.address,
+                  authorityAddress,
+                  ethers.keccak256(ethers.toUtf8Bytes(`BENCHMARK|BENGALURU|${landId}`)),
+                  2400
+                )
+              : await contractAdmin["registerLand(uint256,address,string,string,uint256)"](
+                  landId,
+                  authorityAddress,
                   `SUR-${landId}`,
                   "Bengaluru",
                   2400
                 );
-                const r1 = await tx1.wait();
-                baseTotalGas += r1.gasUsed;
+            const r1 = await tx1.wait();
+            totalGas += r1.gasUsed;
 
-                const tx2 = await baseContractAdmin.requestTransfer(landId, buyerWallet.address);
-                const r2 = await tx2.wait();
-                baseTotalGas += r2.gasUsed;
+            const tx2 = await contractAdmin.requestTransfer(landId, buyerAddress);
+            const r2 = await tx2.wait();
+            totalGas += r2.gasUsed;
 
-                const tx3 = await baseContractAdmin.approveTransfer(landId);
-                const r3 = await tx3.wait();
-                baseTotalGas += r3.gasUsed;
+            const tx3 = await contractAdmin.approveTransfer(landId);
+            const r3 = await tx3.wait();
+            totalGas += r3.gasUsed;
 
-                const tx4 = await baseContractBuyer.transferOwnership(landId);
-                const r4 = await tx4.wait();
-                baseTotalGas += r4.gasUsed;
-              } catch (err) {
-                console.error("Base tx error:", err);
-                baseFailures++;
-              }
-            })
-          );
-          await new Promise((resolve) => setTimeout(resolve, 0));
-        }
-        const baseElapsed = Number((performance.now() - baseStart).toFixed(2));
-        const baseGasNum = Number(baseTotalGas);
+            const tx4 = await contractBuyer.transferOwnership(landId);
+            const r4 = await tx4.wait();
+            totalGas += r4.gasUsed;
+          } catch (err) {
+            console.error(`${contractName} lifecycle ${idx} failed:`, err);
+            failedLifecycles += 1;
+          }
+        })());
 
-        results.push({
-          contract: "BaseLandRegistry",
-          mode: "sequential",
+        await Promise.all(lifecycleJobs);
+
+        const elapsedMs = Number((performance.now() - startTime).toFixed(2));
+        const gasNum = Number(totalGas);
+        const completedLifecycles = count - failedLifecycles;
+
+        return {
+          contract: contractName,
+          mode: "parallel",
           load: count,
-          totalGas: baseGasNum,
-          gasPerLifecycle: count > 0 ? Math.round(baseGasNum / count) : 0,
-          failureRate: Number(((baseFailures / (count * 4)) * 100).toFixed(2)),
-          elapsedMs: baseElapsed
-        });
+          totalGas: gasNum,
+          gasPerLifecycle: count > 0 ? Math.round(gasNum / count) : 0,
+          failureRate: Number(((failedLifecycles / count) * 100).toFixed(2)),
+          failedLifecycles,
+          successfulLifecycles: completedLifecycles,
+          elapsedMs,
+          throughputLifecyclesPerSec: elapsedMs > 0 ? Number((completedLifecycles / (elapsedMs / 1000)).toFixed(2)) : 0
+        };
+      }
 
+      for (let loadIndex = 0; loadIndex < targetLoads.length; loadIndex += 1) {
+        const count = targetLoads[loadIndex];
+
+        const baseResult = await executeParallelLoad({
+          count,
+          contractAdmin: baseContractAdmin,
+          contractBuyer: baseContractBuyer,
+          contractName: "BaseLandRegistry",
+          optimized: false
+        });
+        results.push(baseResult);
         setLoadReport({
           generatedAt: new Date().toISOString(),
+          runId: `realtime-${Date.now()}`,
           isRealtime: true,
-          loads: targetLoads.slice(0, index + 1),
+          executionMode: "parallel",
+          loads: targetLoads.slice(0, loadIndex + 1),
           results: [...results]
         });
 
-        setLoadProgress(`[${results.length + 1}/${totalSteps}] Executing Optimized Contract (${count} txns)...`);
-        const optStart = performance.now();
-        let optTotalGas = 0n;
-        let optFailures = 0;
-
-        for (let i = 0; i < count; i += batchSize) {
-          const chunk = Array.from({ length: Math.min(batchSize, count - i) }, (_, offset) => i + offset);
-          await Promise.all(
-            chunk.map(async (idx) => {
-              const landId = BigInt(Date.now()) * 10000n + BigInt(idx) + BigInt(Math.floor(Math.random() * 9000));
-              const metaHash = ethers.keccak256(ethers.toUtf8Bytes(`BENCHMARK|BENGALURU|${landId}`));
-              try {
-                const tx1 = await optContractAdmin["registerLand(uint256,address,bytes32,uint96)"](
-                  landId,
-                  authorityWallet.address,
-                  metaHash,
-                  2400
-                );
-                const r1 = await tx1.wait();
-                optTotalGas += r1.gasUsed;
-
-                const tx2 = await optContractAdmin.requestTransfer(landId, buyerWallet.address);
-                const r2 = await tx2.wait();
-                optTotalGas += r2.gasUsed;
-
-                const tx3 = await optContractAdmin.approveTransfer(landId);
-                const r3 = await tx3.wait();
-                optTotalGas += r3.gasUsed;
-
-                const tx4 = await optContractBuyer.transferOwnership(landId);
-                const r4 = await tx4.wait();
-                optTotalGas += r4.gasUsed;
-              } catch (err) {
-                console.error("Optimized tx error:", err);
-                optFailures++;
-              }
-            })
-          );
-          await new Promise((resolve) => setTimeout(resolve, 0));
-        }
-        const optElapsed = Number((performance.now() - optStart).toFixed(2));
-        const optGasNum = Number(optTotalGas);
-
-        results.push({
-          contract: "OptimizedLandRegistry",
-          mode: "sequential",
-          load: count,
-          totalGas: optGasNum,
-          gasPerLifecycle: count > 0 ? Math.round(optGasNum / count) : 0,
-          failureRate: Number(((optFailures / (count * 4)) * 100).toFixed(2)),
-          elapsedMs: optElapsed
+        const optimizedResult = await executeParallelLoad({
+          count,
+          contractAdmin: optContractAdmin,
+          contractBuyer: optContractBuyer,
+          contractName: "OptimizedLandRegistry",
+          optimized: true
         });
-
+        results.push(optimizedResult);
         setLoadReport({
           generatedAt: new Date().toISOString(),
+          runId: `realtime-${Date.now()}`,
           isRealtime: true,
-          loads: targetLoads.slice(0, index + 1),
+          executionMode: "parallel",
+          loads: targetLoads.slice(0, loadIndex + 1),
           results: [...results]
         });
       }
@@ -224,9 +203,11 @@ export default function BhoomiApp() {
         generatedAt: new Date().toISOString(),
         runId: `realtime-${Date.now()}`,
         isRealtime: true,
+        executionMode: "parallel",
         loads: targetLoads,
         results: [...results]
       };
+
       setLoadReport(completedReport);
       try {
         const savedReport = await api("/api/benchmarks/realtime-load", {
@@ -238,8 +219,13 @@ export default function BhoomiApp() {
       } catch (saveError) {
         console.warn("Real-time benchmark persistence failed:", saveError.message);
       }
-      setMessage(`Real-time EVM load test completed live on blockchain. Run ${completedReport.runId} saved.`);
-      appendAudit("Real-Time EVM Load Test", "Scalability", `Executed fresh real-time workloads: ${targetLoads.join(", ")} txns; run ${completedReport.runId}`);
+
+      setMessage(`Real-time parallel EVM load test completed live on blockchain. Run ${completedReport.runId} saved.`);
+      appendAudit(
+        "Real-Time Parallel EVM Load Test",
+        "Scalability",
+        `Executed fresh parallel workloads: ${targetLoads.join(", ")} lifecycles; run ${completedReport.runId}`
+      );
     } catch (error) {
       console.error("Real-time load test error:", error);
       setMessage("Load test error: " + error.message);
@@ -2144,7 +2130,7 @@ export default function BhoomiApp() {
 
         {view === "loadtest" && session.user.role === "admin" && (
           <section className="page-grid analytics">
-            <Card title="Real-Time EVM Workload Benchmark (10, 100, 500 Transactions)" action={<div style={{ display: "flex", gap: "8px" }}><button className="small-button" disabled={runningLoadTest} onClick={() => runLoadTest([10])}>Run 10 Txns Live</button><button className="primary" disabled={runningLoadTest} onClick={() => runLoadTest([10, 100, 500])}>{runningLoadTest ? "Executing Real-Time EVM..." : "Execute Real-Time 10, 100, 500 Load Test"}</button></div>}>
+            <Card title="Real-Time EVM Workload Benchmark (10, 100, 500 Transactions)" action={<button className="primary" disabled={runningLoadTest} onClick={() => runLoadTest([10, 100, 500])}>{runningLoadTest ? "Executing Real-Time EVM..." : "Execute Real-Time 10, 100, 500 Load Test"}</button>}>
               {runningLoadTest && (
                 <div style={{ padding: "14px", background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: "8px", marginBottom: "16px", color: "#1e40af", fontWeight: "600", display: "flex", alignItems: "center", gap: "10px" }}>
                   <span className="signal" style={{ background: "#2563eb", width: "12px", height: "12px" }} />
