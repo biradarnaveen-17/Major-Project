@@ -47,10 +47,10 @@ function readState() {
       const data = JSON.parse(fs.readFileSync(dataPath, "utf8"));
       data.users = (data.users || []).filter((u) => u.role === "admin" || u.username === "admin");
       if (!data.users.length) data.users = initialState().users;
-      data.farmers = [];
-      data.landRequests = [];
-      data.documents = [];
-      data.audit = [];
+      data.farmers = data.farmers || [];
+      data.landRequests = data.landRequests || [];
+      data.documents = data.documents || [];
+      data.audit = data.audit || [];
       data.transactions = data.transactions || [];
       return data;
     }
