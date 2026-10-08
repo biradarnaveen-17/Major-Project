@@ -2160,7 +2160,7 @@ export default function BhoomiApp() {
                 </div>
               )}
 
-              <p className="hint" style={{ marginBottom: "16px" }}>Click the button above to execute real-time blockchain transactions directly on your connected local Ganache EVM. This executes 4-step transfer lifecycles across <strong>10, 100, and 500</strong> land transaction batches.</p>
+              <p className="hint" style={{ marginBottom: "16px" }}>Click the button above to execute a real-time concurrent EVM scalability workload. It simulates <strong>10, 100, and 500</strong> independent users executing the registration operation in parallel and records latency, throughput, failures, and gas estimates.</p>
 
               {loadReport?.results?.length ? (
                 <>
@@ -2224,7 +2224,7 @@ export default function BhoomiApp() {
                           <th style={{ padding: "10px" }}>Execution Mode</th>
                           <th style={{ padding: "10px" }}>Workload Batch</th>
                           <th style={{ padding: "10px" }}>Total EVM Gas</th>
-                          <th style={{ padding: "10px" }}>Gas per Lifecycle</th>
+                          <th style={{ padding: "10px" }}>Gas per User</th>
                           <th style={{ padding: "10px" }}>Execution Time</th>
                         </tr>
                       </thead>
@@ -2232,7 +2232,7 @@ export default function BhoomiApp() {
                         {loadReport.results.map((row, idx) => (
                           <tr key={idx} style={{ borderBottom: "1px solid #e2e8f0", background: row.contract.includes("Optimized") ? "#f0fdf4" : "#ffffff" }}>
                             <td style={{ padding: "10px", fontWeight: "bold", color: row.contract.includes("Optimized") ? "#15803d" : "#1e293b" }}>{row.contract}</td>
-                            <td style={{ padding: "10px" }}><Pill tone={row.mode === "concurrent" ? "purple" : "neutral"}>{row.mode}</Pill></td>
+                            <td style={{ padding: "10px" }}><Pill tone={row.mode?.startsWith("parallel") ? "purple" : "neutral"}>{row.mode}</Pill></td>
                             <td style={{ padding: "10px", fontWeight: "bold" }}>{row.load} Txns</td>
                             <td style={{ padding: "10px" }}>{Number(row.totalGas).toLocaleString()} gas</td>
                             <td style={{ padding: "10px", fontWeight: "bold" }}>{Number(row.gasPerLifecycle).toLocaleString()} gas</td>
@@ -2244,7 +2244,7 @@ export default function BhoomiApp() {
                   </div>
                 </>
               ) : (
-                <p className="empty">No real-time workload benchmark executed yet. Click "Execute Real-Time 10, 100, 500 Load Test" to run the test.</p>
+                <p className="empty">No real-time workload benchmark executed yet. Click "Execute Real-Time 10, 100, 500 Load Test" to run the concurrent EVM scalability test.</p>
               )}
             </Card>
           </section>
