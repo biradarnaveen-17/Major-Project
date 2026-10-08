@@ -101,65 +101,106 @@ export default function BhoomiApp() {
       const results = [];
 
       async function executeParallelLoad({ count, contractAdmin, contractBuyer, contractName, optimized }) {
-        setLoadProgress(`Executing ${contractName} with ${count} concurrent land lifecycles...`);
+        setLoadProgress(`Executing ${contractName} with ${count} concurrent lifecycles in batched EVM blocks...`);
         const startTime = performance.now();
         let totalGas = 0n;
         let failedLifecycles = 0;
+        const landIds = Array.from({ length: count }, (_, idx) => BigInt(Date.now()) * 1000000n + BigInt(idx));
+        const batchSize = count >= 500 ? 50 : count >= 100 ? 25 : 10;
+        const originalAutomine = true;
 
-        const lifecycleJobs = Array.from({ length: count }, (_, idx) => (async () => {
-          const landId = BigInt(Date.now()) * 1000000n + BigInt(idx);
-          try {
-            const tx1 = optimized
-              ? await contractAdmin["registerLand(uint256,address,bytes32,uint96)"](
+        async function mineBatch() {
+          await rpcProvider.send("evm_mine", []);
+        }
+
+        async function runPhase(items, buildTransaction) {
+          for (let offset = 0; offset < items.length; offset += batchSize) {
+            const batch = items.slice(offset, offset + batchSize);
+            const txs = await Promise.all(batch.map(async (item) => {
+              try {
+                return await buildTransaction(item);
+              } catch (err) {
+                failedLifecycles += 1;
+                console.error(`${contractName} transaction submission failed:`, err);
+                return null;
+              }
+            }));
+
+            await mineBatch();
+
+            await Promise.all(txs.map(async (tx, localIndex) => {
+              if (!tx) return;
+              try {
+                const receipt = await tx.wait();
+                totalGas += receipt.gasUsed;
+              } catch (err) {
+                failedLifecycles += 1;
+                console.error(`${contractName} transaction confirmation failed:`, err);
+              }
+            }));
+
+            setLoadProgress(
+              `Executing ${contractName}: ${Math.min(offset + batch.length, items.length)}/${items.length} concurrent users...`
+            );
+          }
+        }
+
+        try {
+          await rpcProvider.send("evm_setAutomine", [false]);
+
+          await runPhase(landIds, async (landId) => {
+            return optimized
+              ? contractAdmin["registerLand(uint256,address,bytes32,uint96)"](
                   landId,
                   authorityAddress,
                   ethers.keccak256(ethers.toUtf8Bytes(`BENCHMARK|BENGALURU|${landId}`)),
                   2400
                 )
-              : await contractAdmin["registerLand(uint256,address,string,string,uint256)"](
+              : contractAdmin["registerLand(uint256,address,string,string,uint256)"](
                   landId,
                   authorityAddress,
                   `SUR-${landId}`,
                   "Bengaluru",
                   2400
                 );
-            const r1 = await tx1.wait();
-            totalGas += r1.gasUsed;
+          });
 
-            const tx2 = await contractAdmin.requestTransfer(landId, buyerAddress);
-            const r2 = await tx2.wait();
-            totalGas += r2.gasUsed;
+          await runPhase(landIds, (landId) =>
+            contractAdmin.requestTransfer(landId, buyerAddress)
+          );
 
-            const tx3 = await contractAdmin.approveTransfer(landId);
-            const r3 = await tx3.wait();
-            totalGas += r3.gasUsed;
+          await runPhase(landIds, (landId) =>
+            contractAdmin.approveTransfer(landId)
+          );
 
-            const tx4 = await contractBuyer.transferOwnership(landId);
-            const r4 = await tx4.wait();
-            totalGas += r4.gasUsed;
-          } catch (err) {
-            console.error(`${contractName} lifecycle ${idx} failed:`, err);
-            failedLifecycles += 1;
+          await runPhase(landIds, (landId) =>
+            contractBuyer.transferOwnership(landId)
+          );
+        } finally {
+          try {
+            await rpcProvider.send("evm_setAutomine", [true]);
+          } catch (restoreError) {
+            console.warn("Could not restore Ganache automine:", restoreError.message);
           }
-        })());
-
-        await Promise.all(lifecycleJobs);
+        }
 
         const elapsedMs = Number((performance.now() - startTime).toFixed(2));
         const gasNum = Number(totalGas);
-        const completedLifecycles = count - failedLifecycles;
+        const successfulLifecycles = Math.max(0, count - failedLifecycles);
 
         return {
           contract: contractName,
-          mode: "parallel",
+          mode: "parallel-batched",
           load: count,
           totalGas: gasNum,
           gasPerLifecycle: count > 0 ? Math.round(gasNum / count) : 0,
           failureRate: Number(((failedLifecycles / count) * 100).toFixed(2)),
           failedLifecycles,
-          successfulLifecycles: completedLifecycles,
+          successfulLifecycles,
           elapsedMs,
-          throughputLifecyclesPerSec: elapsedMs > 0 ? Number((completedLifecycles / (elapsedMs / 1000)).toFixed(2)) : 0
+          throughputLifecyclesPerSec: elapsedMs > 0
+            ? Number((successfulLifecycles / (elapsedMs / 1000)).toFixed(2))
+            : 0
         };
       }
 
