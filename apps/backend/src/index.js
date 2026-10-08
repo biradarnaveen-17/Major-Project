@@ -423,6 +423,7 @@ app.post("/api/benchmarks/realtime-load", (request, response) => {
     generatedAt: generatedAt || new Date().toISOString(),
     runId: String(runId || crypto.randomUUID()),
     isRealtime: true,
+    executionMode: String(request.body.executionMode || "parallel"),
     loads: loads.map(Number).filter((value) => value > 0),
     results
   };
