@@ -325,6 +325,7 @@ app.post("/api/admin/reset-database", (_req, res) => {
   state.audit = [];
   state.sessions = [];
   state.runs = [];
+  state.transactions = [];
   saveState();
   return res.json({ message: "All previous land records, farmer requests, and non-admin users have been successfully deleted.", state });
 });
@@ -349,6 +350,12 @@ function latestLoadReport() {
   return null;
 }
 
+app.get("/api/reports", (_request, response) => {
+  const report = latestReport();
+  if (!report) return response.status(404).json({ message: "No gas report exists." });
+  return response.json(report);
+});
+
 app.get("/api/benchmarks/latest", (_request, response) => {
   const report = latestReport();
   if (!report) return response.status(404).json({ message: "No gas report exists. Run npm run compare:gas --workspace packages/contracts." });
@@ -369,6 +376,11 @@ const defaultLoadBenchmarkResults = [
   { contract: "BaseLandRegistry", mode: "concurrent", load: 500, totalGas: 177290904, gasPerLifecycle: 354582, failureRate: 0, elapsedMs: 1301.18 },
   { contract: "OptimizedLandRegistry", mode: "concurrent", load: 500, totalGas: 142336720, gasPerLifecycle: 284673, failureRate: 0, elapsedMs: 1260.08 }
 ];
+
+app.get("/api/load-report", (_request, response) => {
+  const report = latestLoadReport() || { generatedAt: new Date().toISOString(), loads: [10, 100, 500], results: defaultLoadBenchmarkResults };
+  return response.json(report);
+});
 
 app.get("/api/benchmarks/loads", (_request, response) => {
   const report = latestLoadReport() || { generatedAt: new Date().toISOString(), loads: [10, 100, 500], results: defaultLoadBenchmarkResults };
