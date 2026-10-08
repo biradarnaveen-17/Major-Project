@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ethers } from "ethers";
 import {
   API_URL,
@@ -55,8 +55,10 @@ export default function BhoomiApp() {
   const [loadReport, setLoadReport] = useState(null);
   const [runningLoadTest, setRunningLoadTest] = useState(false);
   const [loadProgress, setLoadProgress] = useState("");
+  const loadTestGeneration = useRef(0);
 
   async function runLoadTest(targetLoads = [10, 100, 500]) {
+    const runGeneration = ++loadTestGeneration.current;
     try {
       setRunningLoadTest(true);
       setLoadReport({ generatedAt: new Date().toISOString(), runId: `realtime-${Date.now()}`, isRealtime: true, executionMode: "parallel", loads: [], results: [] });
@@ -230,8 +232,10 @@ export default function BhoomiApp() {
       console.error("Real-time load test error:", error);
       setMessage("Load test error: " + error.message);
     } finally {
-      setRunningLoadTest(false);
-      setLoadProgress("");
+      if (runGeneration === loadTestGeneration.current) {
+        setRunningLoadTest(false);
+        setLoadProgress("");
+      }
     }
   }
 
@@ -362,6 +366,7 @@ export default function BhoomiApp() {
   }
 
   async function loadPortalData() {
+    const requestGeneration = loadTestGeneration.current;
     const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult, loadResult, transactionResult] = await Promise.allSettled([api("/api/dashboard"), api("/api/documents"), api("/api/audit"), api("/api/reports"), api("/api/land-requests"), api("/api/purchasers"), api("/api/load-report"), api("/api/transactions")]);
     if (dashboardResult.status === "fulfilled") setPortalStats(dashboardResult.value);
     if (documentResult.status === "fulfilled") setDocuments(documentResult.value);
@@ -369,7 +374,7 @@ export default function BhoomiApp() {
     if (reportResult.status === "fulfilled") setReport(reportResult.value);
     if (requestResult.status === "fulfilled") setLandRequests(requestResult.value);
     if (purchaserResult.status === "fulfilled") setPurchasers(purchaserResult.value);
-    if (loadResult.status === "fulfilled") setLoadReport(loadResult.value);
+    if (loadResult.status === "fulfilled" && requestGeneration === loadTestGeneration.current) setLoadReport(loadResult.value);
     if (transactionResult.status === "fulfilled") setLiveTransactions(transactionResult.value);
   }
 
