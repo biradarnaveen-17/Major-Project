@@ -27,22 +27,12 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-# ---------- Stage 2: Serve ----------
-FROM node:20-alpine AS production
+# ---------- Stage 2: Serve behind same-origin API/RPC proxy ----------
+FROM nginx:alpine AS production
 
-WORKDIR /app
-
-# Install a lightweight static file server
-RUN npm install -g serve
-
-# Copy the built output from the build stage
-COPY --from=build /app/dist ./dist
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 5173
 
-# Health check: verify the HTTP server responds
-HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:5173/ || exit 1
-
-# Serve the static build on port 5173
-CMD ["serve", "-s", "dist", "-l", "5173"]
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 CMD wget -qO- http://localhost:5173/ >/dev/null || exit 1

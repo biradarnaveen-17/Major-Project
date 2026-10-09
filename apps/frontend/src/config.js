@@ -3,11 +3,15 @@ const currentHost =
     ? window.location.hostname
     : "localhost";
 
+const configuredApiBase = import.meta.env.VITE_API_BASE_URL;
 export const API_URL =
-  import.meta.env.VITE_API_BASE_URL || `http://${currentHost}:5000`;
+  configuredApiBase !== undefined ? configuredApiBase : `http://${currentHost}:5000`;
 
+const configuredRpcUrl = import.meta.env.VITE_RPC_URL;
 export const RPC_URL =
-  import.meta.env.VITE_RPC_URL || `http://${currentHost}:8545`;
+  configuredRpcUrl?.startsWith("/") && typeof window !== "undefined"
+    ? new URL(configuredRpcUrl, window.location.origin).toString()
+    : configuredRpcUrl || `http://${currentHost}:8545`;
 
 export const ADDRESSES = {
   base: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
