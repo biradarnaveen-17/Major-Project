@@ -36,8 +36,7 @@ function initialState() {
     farmers: [],
     landRequests: [],
     documents: [],
-    audit: [],
-    transactions: []
+    audit: []
   };
 }
 
@@ -47,11 +46,10 @@ function readState() {
       const data = JSON.parse(fs.readFileSync(dataPath, "utf8"));
       data.users = (data.users || []).filter((u) => u.role === "admin" || u.username === "admin");
       if (!data.users.length) data.users = initialState().users;
-      data.farmers = data.farmers || [];
-      data.landRequests = data.landRequests || [];
-      data.documents = data.documents || [];
-      data.audit = data.audit || [];
-      data.transactions = data.transactions || [];
+      data.farmers = [];
+      data.landRequests = [];
+      data.documents = [];
+      data.audit = [];
       return data;
     }
   } catch (error) {
@@ -68,7 +66,6 @@ state.farmers ||= [];
 state.landRequests ||= [];
 state.documents ||= [];
 state.audit ||= [];
-state.transactions ||= [];
 
 const adminUser = state.users.find((u) => u.role === "admin" || u.username === "admin");
 if (adminUser) adminUser.email = "rcbforevervk1800@gmail.com";
@@ -325,7 +322,6 @@ app.post("/api/admin/reset-database", (_req, res) => {
   state.audit = [];
   state.sessions = [];
   state.runs = [];
-  state.transactions = [];
   saveState();
   return res.json({ message: "All previous land records, farmer requests, and non-admin users have been successfully deleted.", state });
 });
@@ -350,12 +346,6 @@ function latestLoadReport() {
   return null;
 }
 
-app.get("/api/reports", (_request, response) => {
-  const report = latestReport();
-  if (!report) return response.status(404).json({ message: "No gas report exists." });
-  return response.json(report);
-});
-
 app.get("/api/benchmarks/latest", (_request, response) => {
   const report = latestReport();
   if (!report) return response.status(404).json({ message: "No gas report exists. Run npm run compare:gas --workspace packages/contracts." });
@@ -376,11 +366,6 @@ const defaultLoadBenchmarkResults = [
   { contract: "BaseLandRegistry", mode: "concurrent", load: 500, totalGas: 177290904, gasPerLifecycle: 354582, failureRate: 0, elapsedMs: 1301.18 },
   { contract: "OptimizedLandRegistry", mode: "concurrent", load: 500, totalGas: 142336720, gasPerLifecycle: 284673, failureRate: 0, elapsedMs: 1260.08 }
 ];
-
-app.get("/api/load-report", (_request, response) => {
-  const report = latestLoadReport() || { generatedAt: new Date().toISOString(), loads: [10, 100, 500], results: defaultLoadBenchmarkResults };
-  return response.json(report);
-});
 
 app.get("/api/benchmarks/loads", (_request, response) => {
   const report = latestLoadReport() || { generatedAt: new Date().toISOString(), loads: [10, 100, 500], results: defaultLoadBenchmarkResults };
@@ -411,46 +396,6 @@ app.post("/api/benchmarks/run-load-test", (_request, response) => {
   } catch (error) {
     console.error("Load test execution error:", error);
     return response.status(500).json({ message: "Failed to execute load test benchmark: " + error.message });
-  }
-});
-
-app.post("/api/benchmarks/realtime-load", (request, response) => {
-  const { generatedAt, runId, loads, results } = request.body || {};
-  if (!Array.isArray(loads) || !Array.isArray(results) || !results.length) {
-    return response.status(400).json({ message: "loads[] and results[] are required." });
-  }
-  const report = {
-    generatedAt: generatedAt || new Date().toISOString(),
-    runId: String(runId || crypto.randomUUID()),
-    isRealtime: true,
-    executionMode: String(request.body.executionMode || "parallel"),
-    loads: loads.map(Number).filter((value) => value > 0),
-    results
-  };
-  try {
-    fs.mkdirSync(path.dirname(loadReportPath), { recursive: true });
-    fs.writeFileSync(loadReportPath, `${JSON.stringify(report, null, 2)}\\n`);
-    state.runs.unshift({
-      id: report.runId,
-      name: "Real-Time EVM Load Test",
-      type: "realtime",
-      results: report.results,
-      loads: report.loads,
-      generatedAt: report.generatedAt,
-      createdAt: new Date().toISOString()
-    });
-    state.runs = state.runs.slice(0, 50);
-    addAudit({
-      action: "Saved Real-Time EVM Load Test",
-      landId: "Scalability",
-      actor: "System Administrator",
-      detail: `Fresh blockchain workload results saved for ${report.loads.join(", ")} transactions (run ${report.runId})`
-    });
-    saveState();
-    return response.status(201).json(report);
-  } catch (error) {
-    console.error("Realtime benchmark persistence error:", error);
-    return response.status(500).json({ message: "Failed to save real-time benchmark: " + error.message });
   }
 });
 
@@ -1080,32 +1025,6 @@ app.patch("/api/documents/:id/verify", (request, response) => {
   addAudit({ action: "Document verified", landId: document.landId, actor: "Registrar", detail: `${document.category}: ${document.reference}` });
   saveState();
   return response.json(document);
-});
-
-app.get("/api/transactions", (_request, response) => response.json(state.transactions || []));
-
-app.post("/api/transactions", (request, response) => {
-  const { operation, variant, contractAddress, contractName, gas, cost, block, hash, landId, timestamp } = request.body || {};
-  if (!String(operation || "").trim() || !String(hash || "").trim()) {
-    return response.status(400).json({ message: "operation and transaction hash are required" });
-  }
-  const entry = {
-    id: crypto.randomUUID(),
-    operation: String(operation).trim(),
-    variant: variant === "base" ? "base" : "optimized",
-    contractAddress: String(contractAddress || "").trim(),
-    contractName: String(contractName || "").trim(),
-    gas: String(gas || "0"),
-    cost: String(cost || "0"),
-    block: Number(block || 0),
-    hash: String(hash).trim(),
-    landId: String(landId || ""),
-    timestamp: timestamp || new Date().toISOString()
-  };
-  state.transactions.unshift(entry);
-  state.transactions = state.transactions.slice(0, 200);
-  saveState();
-  return response.status(201).json(entry);
 });
 
 app.get("/api/audit", (_request, response) => response.json(state.audit));

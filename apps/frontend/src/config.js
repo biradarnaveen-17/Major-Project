@@ -3,20 +3,11 @@ const currentHost =
     ? window.location.hostname
     : "localhost";
 
-const isDevTunnel = currentHost.endsWith(".devtunnels.ms");
-const protocol = isDevTunnel ? "https" : "http";
-const apiHost = isDevTunnel
-  ? currentHost.replace("-5173.", "-5000.")
-  : currentHost;
-const rpcHost = isDevTunnel
-  ? currentHost.replace("-5173.", "-8545.")
-  : currentHost;
-
 export const API_URL =
-  import.meta.env.VITE_API_BASE_URL || `${protocol}://${apiHost}${isDevTunnel ? "" : ":5000"}`;
+  import.meta.env.VITE_API_BASE_URL || `http://${currentHost}:5000`;
 
 export const RPC_URL =
-  import.meta.env.VITE_RPC_URL || `${protocol}://${rpcHost}${isDevTunnel ? "" : ":8545"}`;
+  import.meta.env.VITE_RPC_URL || `http://${currentHost}:8545`;
 
 export const ADDRESSES = {
   base: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
@@ -32,7 +23,7 @@ export const PORTALS = {
   officer: { label: "Revenue Officer portal", account: "authority", defaultView: "agent", views: ["overview", "agent", "registry", "transfer", "documents", "gaslog"] },
   admin: { label: "System Administrator", account: "authority", defaultView: "gaslog", views: ["overview", "gaslog", "accounts", "analytics", "loadtest", "audit"] }
 };
-export const COMMON_ABI = ["function registerLand(uint256,address,string,string,uint256)", "function registerLand(uint256,address,bytes32,uint96)", "function requestTransfer(uint256,address)", "function approveTransfer(uint256)", "function transferOwnership(uint256)", "function registrars(address) view returns (bool)", "function setRegistrar(address,bool)"];
+export const COMMON_ABI = ["function registerLand(uint256,address,string,string,uint256)", "function registerLand(uint256,address,bytes32,uint96)", "function requestTransfer(uint256,address)", "function approveTransfer(uint256)", "function transferOwnership(uint256)", "function registrars(address) view returns (bool)"];
 export const BASE_ABI = [...COMMON_ABI, "function getLandDetails(uint256) view returns (uint256,string,string,uint256,address,address,uint8,address[])"];
 export const OPTIMIZED_ABI = [...COMMON_ABI, "function getLandDetails(uint256) view returns (address,uint96,bytes32,address,uint8,address[])", "error NotRegistrar()", "error ZeroAddress()", "error InvalidArea()", "error LandNotRegistered()", "error DuplicateRegistration()", "error DuplicateParcel()", "error NotCurrentOwner()", "error InvalidNewOwner()", "error TransferAlreadyActive()", "error TransferNotRequested()", "error TransferNotApproved()", "error NotPendingOwner()"];
 export const statusText = ["No transfer", "Requested", "Approved"];
