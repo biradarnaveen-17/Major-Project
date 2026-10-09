@@ -981,14 +981,21 @@ export default function BhoomiApp() {
         const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
         const authorityRegistry = new ethers.Contract(landAddress, landAbi, authoritySigner);
 
-        try {
-          const isReg = await authorityRegistry.registrars(authoritySigner.address).catch(() => true);
-          if (!isReg) {
-            const setRegTx = await authorityRegistry.setRegistrar(authoritySigner.address, true);
-            await setRegTx.wait();
-          }
-        } catch (regErr) {
-          console.warn("Auto-setRegistrar skipped:", regErr.message);
+        // Fail early if this address has no contract on the active chain. This
+        // usually means the frontend is pointing at stale deployment addresses.
+        const deployedCode = await activeProvider.getCode(landAddress);
+        if (!deployedCode || deployedCode === "0x") {
+          throw new Error(
+            `No registry contract exists at ${landAddress} on chain ${(await activeProvider.getNetwork()).chainId}. Redeploy the contracts and use the matching deployment addresses.`
+          );
+        }
+
+        // Do not treat a failed registrar lookup as permission. That masked RPC,
+        // wrong-address, and ABI errors and let the following transaction revert.
+        const isReg = await authorityRegistry.registrars(authoritySigner.address);
+        if (!isReg) {
+          const setRegTx = await authorityRegistry.setRegistrar(authoritySigner.address, true);
+          await setRegTx.wait();
         }
 
         if (landVariant === "base") {
@@ -1237,6 +1244,8 @@ export default function BhoomiApp() {
         const freshId = String(Date.now());
         setForm((current) => ({ ...current, landId: freshId }));
         setMessage(`Land ID ${form.landId} is already registered. A fresh ID (${freshId}) has been generated; click Register again.`);
+      } else if (action === "register" && /duplicateparcel|duplicate survey and location/i.test(String(error?.message || error?.shortMessage || ""))) {
+        setMessage("This Survey Number and revenue location are already registered on this blockchain. Use the existing land record or correct the parcel details.");
       } else {
         setMessage(friendlyError);
       }
