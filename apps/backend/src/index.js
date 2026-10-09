@@ -16,6 +16,9 @@ const port = Number(process.env.PORT || 5000);
 const reportPath = path.resolve(__dirname, "../../../docs/experiments/gas-comparison-latest.json");
 const dataPath = process.env.LOCAL_DATA_PATH || path.resolve(__dirname, "../data/registry-operations.json");
 const allowedOrigins = new Set((process.env.CORS_ORIGIN || "http://localhost:5173").split(",").map((value) => value.trim()));
+const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
+const registryAddress = process.env.LAND_REGISTRY_CONTRACT_ADDRESS || "";
+const REGISTRY_ABI = ["function getLandDetails(uint256) view returns (address,uint96,bytes32,address,uint8,address[])"];
 
 function initialState() {
   return {
@@ -44,12 +47,15 @@ function readState() {
   try {
     if (fs.existsSync(dataPath)) {
       const data = JSON.parse(fs.readFileSync(dataPath, "utf8"));
-      data.users = (data.users || []).filter((u) => u.role === "admin" || u.username === "admin");
+      data.users ||= initialState().users;
       if (!data.users.length) data.users = initialState().users;
-      data.farmers = [];
-      data.landRequests = [];
-      data.documents = [];
-      data.audit = [];
+      // Retain the local workflow records across backend/container restarts.
+      // They are required to reconcile confirmed blockchain transactions with
+      // the officer and citizen portal views.
+      data.farmers ||= [];
+      data.landRequests ||= [];
+      data.documents ||= [];
+      data.audit ||= [];
       return data;
     }
   } catch (error) {
@@ -80,6 +86,27 @@ function addAudit({ action, landId, actor = "System", detail = "" }) {
   state.audit.unshift(entry);
   state.audit = state.audit.slice(0, 100);
   return entry;
+}
+
+async function confirmOnChainRegistration(landId, expectedOwner, transactionHash) {
+  if (!ethers.isAddress(registryAddress)) {
+    throw new Error("The blockchain contract address is not configured for registration verification.");
+  }
+  if (!ethers.isAddress(expectedOwner)) {
+    throw new Error("The land request does not contain a valid owner wallet address.");
+  }
+
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const receipt = await provider.getTransactionReceipt(transactionHash);
+  if (!receipt || receipt.status !== 1) {
+    throw new Error("The blockchain transaction is not confirmed successfully. Do not mark this request as registered yet.");
+  }
+
+  const registry = new ethers.Contract(registryAddress, REGISTRY_ABI, provider);
+  const details = await registry.getLandDetails.staticCall(landId);
+  if (details[0].toLowerCase() !== expectedOwner.toLowerCase()) {
+    throw new Error("The blockchain owner does not match the verified land request.");
+  }
 }
 
 const fallbackGasReport = {
@@ -944,12 +971,17 @@ app.patch("/api/land-requests/:id/reject", (request, response) => {
   return response.json(landRequest);
 });
 
-app.patch("/api/land-requests/:id/registered", (request, response) => {
+app.patch("/api/land-requests/:id/registered", async (request, response) => {
   const landRequest = state.landRequests.find((item) => item.id === request.params.id);
   const { landId, transactionHash } = request.body || {};
   if (!landRequest) return response.status(404).json({ message: "Land-registration request not found." });
   if (landRequest.status !== "Verified") return response.status(400).json({ message: "Verify the request before blockchain registration." });
   if (!String(landId || "").trim() || !String(transactionHash || "").trim()) return response.status(400).json({ message: "landId and transactionHash are required." });
+  try {
+    await confirmOnChainRegistration(landId, landRequest.walletAddress, transactionHash);
+  } catch (error) {
+    return response.status(400).json({ message: error.message || "Unable to verify the blockchain registration." });
+  }
   landRequest.status = "Registered on blockchain";
   landRequest.landId = String(landId);
   landRequest.transactionHash = String(transactionHash);

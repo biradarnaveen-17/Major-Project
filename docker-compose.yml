@@ -87,6 +87,7 @@ services:
       MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-land_admin}:${MONGO_INITDB_ROOT_PASSWORD:-change_me}@mongo:27017/${MONGO_DATABASE:-land_registration_research}?authSource=admin
       RPC_URL: http://ganache:8545
       CHAIN_ID: 31337
+      LAND_REGISTRY_CONTRACT_ADDRESS: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
       CORS_ORIGIN: "http://localhost:${FRONTEND_PORT:-5173}"
       JWT_SECRET: ${JWT_SECRET:-docker-dev-jwt-secret-change-in-production}
       # SMTP is optional. When absent, the email verification code is shown
@@ -111,15 +112,19 @@ services:
   # ─── Frontend (React + Vite) ──────────────────────────────────────────
   # Multi-portal SPA: Farmer, Purchaser, Revenue Officer, and Admin.
   # Served as a static production build.
+
+  # ─── Frontend (React + Vite) ──────────────────────────────────────────
+  # Multi-portal SPA: Farmer, Purchaser, Revenue Officer, and Admin.
+  # Served as a static production build.
   frontend:
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile
       args:
         VITE_APP_NAME: "Land Registration Gas Analysis"
-        VITE_API_BASE_URL: "https://qqt0fkm0-5000.inc1.devtunnels.ms"
+        VITE_API_BASE_URL: "http://localhost:5000"
         VITE_CHAIN_ID: "31337"
-        VITE_RPC_URL: "https://qqt0fkm0-8545.inc1.devtunnels.ms"
+        VITE_RPC_URL: "http://localhost:8545"
     container_name: land-registration-frontend
     restart: unless-stopped
     ports:
@@ -127,6 +132,9 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+      ganache:
+        condition: service_healthy
+
 
 volumes:
   mongo_data:
