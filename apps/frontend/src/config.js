@@ -3,11 +3,20 @@ const currentHost =
     ? window.location.hostname
     : "localhost";
 
+const isDevTunnel = currentHost.endsWith(".devtunnels.ms");
+const protocol = isDevTunnel ? "https" : "http";
+const apiHost = isDevTunnel
+  ? currentHost.replace("-5173.", "-5000.")
+  : currentHost;
+const rpcHost = isDevTunnel
+  ? currentHost.replace("-5173.", "-8545.")
+  : currentHost;
+
 export const API_URL =
-  import.meta.env.VITE_API_BASE_URL || `http://${currentHost}:5000`;
+  import.meta.env.VITE_API_BASE_URL || `${protocol}://${apiHost}${isDevTunnel ? "" : ":5000"}`;
 
 export const RPC_URL =
-  import.meta.env.VITE_RPC_URL || `http://${currentHost}:8545`;
+  import.meta.env.VITE_RPC_URL || `${protocol}://${rpcHost}${isDevTunnel ? "" : ":8545"}`;
 
 export const ADDRESSES = {
   base: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
