@@ -57,9 +57,12 @@ export default function BhoomiApp() {
   const [loadProgress, setLoadProgress] = useState("");
 
   async function runLoadTest(targetLoads = [10, 100, 500]) {
+    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const startedAt = new Date().toISOString();
     try {
       setRunningLoadTest(true);
-      setLoadReport({ generatedAt: new Date().toISOString(), isRealtime: true, loads: [], results: [] });
+      // Clear the prior result so the chart always represents this execution.
+      setLoadReport({ runId, startedAt, generatedAt: startedAt, isRealtime: true, loads: [], results: [] });
       setLoadProgress("Connecting to local EVM blockchain...");
       setMessage("Starting real-time EVM workload benchmark...");
 
@@ -153,6 +156,8 @@ export default function BhoomiApp() {
         });
 
         setLoadReport({
+          runId,
+          startedAt,
           generatedAt: new Date().toISOString(),
           isRealtime: true,
           loads: targetLoads.slice(0, index + 1),
@@ -213,6 +218,8 @@ export default function BhoomiApp() {
         });
 
         setLoadReport({
+          runId,
+          startedAt,
           generatedAt: new Date().toISOString(),
           isRealtime: true,
           loads: targetLoads.slice(0, index + 1),
@@ -220,6 +227,7 @@ export default function BhoomiApp() {
         });
       }
 
+      setLoadReport((current) => current ? { ...current, completedAt: new Date().toISOString() } : current);
       setMessage("Real-time EVM load test completed live on blockchain!");
       appendAudit("Real-Time EVM Load Test", "Scalability", `Executed real-time workloads: ${targetLoads.join(", ")} txns`);
     } catch (error) {
@@ -358,14 +366,13 @@ export default function BhoomiApp() {
   }
 
   async function loadPortalData() {
-    const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult, loadResult] = await Promise.allSettled([api("/api/dashboard"), api("/api/documents"), api("/api/audit"), api("/api/reports"), api("/api/land-requests"), api("/api/purchasers"), api("/api/load-report")]);
+    const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult] = await Promise.allSettled([api("/api/dashboard"), api("/api/documents"), api("/api/audit"), api("/api/benchmarks/latest"), api("/api/land-requests"), api("/api/purchasers")]);
     if (dashboardResult.status === "fulfilled") setPortalStats(dashboardResult.value);
     if (documentResult.status === "fulfilled") setDocuments(documentResult.value);
     if (auditResult.status === "fulfilled") setAudit(auditResult.value);
     if (reportResult.status === "fulfilled") setReport(reportResult.value);
     if (requestResult.status === "fulfilled") setLandRequests(requestResult.value);
     if (purchaserResult.status === "fulfilled") setPurchasers(purchaserResult.value);
-    if (loadResult.status === "fulfilled") setLoadReport(loadResult.value);
   }
 
   async function refreshAppData() {
@@ -495,7 +502,7 @@ export default function BhoomiApp() {
       try {
         network = await localProvider.getNetwork();
       } catch {
-        localProvider = new ethers.JsonRpcProvider("http://localhost:8545");
+        localProvider = new ethers.JsonRpcProvider(RPC_URL);
         network = await localProvider.getNetwork();
       }
       const chainId = Number(network?.chainId || 31337);
@@ -665,7 +672,7 @@ export default function BhoomiApp() {
         if (active) setChainStats({ block, gasPrice: feeData.gasPrice || 0n });
       } catch {
         try {
-          const fallbackProvider = new ethers.JsonRpcProvider("http://localhost:8545");
+          const fallbackProvider = new ethers.JsonRpcProvider(RPC_URL);
           const [block, feeData] = await Promise.all([fallbackProvider.getBlockNumber(), fallbackProvider.getFeeData()]);
           if (active) setChainStats({ block, gasPrice: feeData.gasPrice || 0n });
         } catch {
@@ -1175,7 +1182,7 @@ export default function BhoomiApp() {
       }
       if (action === "register" && pendingRequestId) {
         try {
-          const registeredRequest = await api(`/api/land-requests/${pendingRequestId}/registered`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ landId: form.landId, owner: form.owner || wallet?.account || DEMO_ACCOUNTS.farmer }) });
+          const registeredRequest = await api(`/api/land-requests/${pendingRequestId}/registered`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ landId: form.landId, transactionHash: tx.hash }) });
           setLandRequests((current) => current.map((item) => item.id === registeredRequest.id ? registeredRequest : item));
           setPendingRequestId(null);
         } catch (requestError) { setMessage(`Blockchain registration succeeded, but the local request status needs refresh: ${requestError.message}`); }
@@ -1183,8 +1190,12 @@ export default function BhoomiApp() {
       await appendAudit(`${action[0].toUpperCase()}${action.slice(1)} transaction confirmed`, form.landId, `${receipt.gasUsed.toString()} gas | ${tx.hash}`);
 
       if (action === "register") {
+        // The receipt is the source of truth for a completed registration. A
+        // follow-up lookup can briefly fail while client state is refreshing,
+        // so keep that lookup silent and never replace a confirmed-success
+        // message with a misleading "not registered" error.
+        await findLand(form.landId, true);
         setMessage(`Land ID #${form.landId} registered on blockchain in block ${receipt.blockNumber}! Gas used: ${receipt.gasUsed.toString()}.`);
-        await findLand(form.landId);
         setView(session?.user?.role === "officer" ? "agent" : "farmer");
         await refreshAppData();
       } else if (action === "transfer") {
@@ -2122,7 +2133,7 @@ export default function BhoomiApp() {
 
         {view === "loadtest" && session.user.role === "admin" && (
           <section className="page-grid analytics">
-            <Card title="Real-Time EVM Workload Benchmark (10, 100, 500 Transactions)" action={<div style={{ display: "flex", gap: "8px" }}><button className="small-button" disabled={runningLoadTest} onClick={() => runLoadTest([10])}>Run 10 Txns Live</button><button className="primary" disabled={runningLoadTest} onClick={() => runLoadTest([10, 100, 500])}>{runningLoadTest ? "Executing Real-Time EVM..." : "Execute Real-Time 10, 100, 500 Load Test"}</button></div>}>
+            <Card title="Real-Time EVM Workload Benchmark (10, 100, 500 Transactions)" action={<button className="primary" disabled={runningLoadTest} onClick={() => runLoadTest([10, 100, 500])}>{runningLoadTest ? "Executing Real-Time EVM..." : "Execute Real-Time 10, 100, 500 Load Test"}</button>}>
               {runningLoadTest && (
                 <div style={{ padding: "14px", background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: "8px", marginBottom: "16px", color: "#1e40af", fontWeight: "600", display: "flex", alignItems: "center", gap: "10px" }}>
                   <span className="signal" style={{ background: "#2563eb", width: "12px", height: "12px" }} />
@@ -2139,6 +2150,7 @@ export default function BhoomiApp() {
                       <div>
                         <h3 style={{ margin: 0, fontSize: "1.1rem", color: "#0f172a" }}>Gas Consumption Histogram (Base vs. Optimized)</h3>
                         <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", color: "#64748b" }}>Vertical column comparison across 10, 100, and 500 property transaction workloads</p>
+                        {loadReport.runId && <small style={{ display: "block", marginTop: "4px", color: "#475569" }}>Live run {loadReport.runId} · started {new Date(loadReport.startedAt).toLocaleTimeString()}{loadReport.completedAt ? ` · completed ${new Date(loadReport.completedAt).toLocaleTimeString()}` : ""}</small>}
                       </div>
                       <div style={{ display: "flex", gap: "16px", fontSize: "0.85rem" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: "6px" }}><span style={{ width: "12px", height: "12px", background: "#b45309", borderRadius: "3px" }} /> Base Contract</span>
@@ -2186,6 +2198,7 @@ export default function BhoomiApp() {
                     </div>
                   </div>
 
+                  <p className="hint">Each execution uses newly generated land IDs and new on-chain transactions. Gas for an identical contract lifecycle is expected to be stable; the run ID and execution times above confirm a fresh measurement.</p>
                   <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.9rem" }}>
                       <thead>

@@ -1,13 +1,27 @@
-const currentHost =
-  typeof window !== "undefined" && window.location.hostname
-    ? window.location.hostname
-    : "localhost";
+const browserLocation = typeof window !== "undefined" ? window.location : null;
+const currentHost = browserLocation?.hostname || "localhost";
+const isDevTunnel = currentHost.endsWith(".devtunnels.ms");
 
-export const API_URL =
-  import.meta.env.VITE_API_BASE_URL || `http://${currentHost}:5000`;
+function serviceUrl(port) {
+  if (isDevTunnel) {
+    // Dev Tunnels publish each forwarded port as a sibling hostname, e.g.
+    // <tunnel>-5173.inc1.devtunnels.ms -> <tunnel>-5000.inc1.devtunnels.ms.
+    const tunnelHost = currentHost.replace(/-\d+(?=\.inc\d+\.devtunnels\.ms$)/, `-${port}`);
+    return `${browserLocation.protocol}//${tunnelHost}`;
+  }
 
-export const RPC_URL =
-  import.meta.env.VITE_RPC_URL || `http://${currentHost}:8545`;
+  return `${browserLocation?.protocol || "http:"}//${currentHost}:${port}`;
+}
+
+// Tunnel URLs must be resolved at runtime. Vite variables are baked in during
+// Docker image creation and would otherwise retain the host machine's localhost.
+export const API_URL = isDevTunnel
+  ? serviceUrl(5000)
+  : import.meta.env.VITE_API_BASE_URL || serviceUrl(5000);
+
+export const RPC_URL = isDevTunnel
+  ? serviceUrl(8545)
+  : import.meta.env.VITE_RPC_URL || serviceUrl(8545);
 
 export const ADDRESSES = {
   base: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
