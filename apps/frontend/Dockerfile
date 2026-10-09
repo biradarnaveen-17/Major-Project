@@ -35,5 +35,4 @@ COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 5173
 
-HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \\
-  CMD wget -qO- http://localhost:5173/ >/dev/null || exit 1
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 CMD wget -qO- http://localhost:5173/ >/dev/null || exit 1
