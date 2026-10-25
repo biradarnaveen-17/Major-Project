@@ -5,10 +5,11 @@ applications:
       phases:
         preBuild:
           commands:
-            - npm ci
+            # The npm workspaces lockfile lives at the repository root.
+            - cd ../.. && npm ci
         build:
           commands:
-            - npm run build
+            - cd ../.. && npm run build --workspace apps/frontend
       artifacts:
         baseDirectory: dist
         files:
