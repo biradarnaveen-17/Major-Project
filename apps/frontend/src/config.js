@@ -1,4 +1,5 @@
 const browserLocation = typeof window !== "undefined" ? window.location : null;
+const viteEnv = import.meta.env || {};
 const currentHost = browserLocation?.hostname || "localhost";
 const isDevTunnel = currentHost.endsWith(".devtunnels.ms");
 
@@ -17,11 +18,11 @@ function serviceUrl(port) {
 // Docker image creation and would otherwise retain the host machine's localhost.
 export const API_URL = isDevTunnel
   ? serviceUrl(5000)
-  : import.meta.env.VITE_API_BASE_URL || serviceUrl(5000);
+  : viteEnv.VITE_API_BASE_URL || serviceUrl(5000);
 
 export const RPC_URL = isDevTunnel
   ? serviceUrl(8545)
-  : import.meta.env.VITE_RPC_URL || serviceUrl(8545);
+  : viteEnv.VITE_RPC_URL || serviceUrl(8545);
 
 export const ADDRESSES = {
   base: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
