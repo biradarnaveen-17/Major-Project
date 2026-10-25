@@ -1,0 +1,253 @@
+/* Responsive-only overrides: preserve the existing desktop design and visual theme. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+img,
+svg,
+canvas,
+video {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
+  font: inherit;
+}
+
+input,
+select,
+textarea {
+  min-width: 0;
+}
+
+.app-shell,
+.workspace,
+.page-grid,
+.panel,
+.card,
+.benchmark-dashboard,
+.benchmark-chart-panel,
+.benchmark-evidence-panel {
+  min-width: 0;
+}
+
+.table-row > *,
+.chart-row > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    display: block;
+    width: 100%;
+  }
+
+  .sidebar {
+    position: static;
+    top: auto;
+    width: 100%;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 12px;
+  }
+
+  .brand {
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .brand-mark {
+    flex: 0 0 42px;
+  }
+
+  nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .nav-item {
+    min-width: 0;
+    padding: 10px 8px;
+    font-size: 0.82rem;
+    overflow-wrap: anywhere;
+  }
+
+  .sidebar-foot {
+    margin-top: 14px;
+  }
+
+  .workspace {
+    width: 100%;
+    max-width: 100%;
+    padding: 16px 12px 32px;
+  }
+
+  .topbar {
+    gap: 12px;
+  }
+
+  .topbar h1 {
+    font-size: clamp(1.45rem, 7vw, 2rem);
+    overflow-wrap: anywhere;
+  }
+
+  .account-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .account-actions > * {
+    min-width: 0;
+  }
+
+  .status-strip {
+    gap: 8px;
+    padding: 10px 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .page-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .hero-actions {
+    flex-wrap: wrap;
+  }
+
+  .hero-actions button,
+  .benchmark-run-btn {
+    min-height: 42px;
+  }
+
+  .panel,
+  .card,
+  .benchmark-chart-panel,
+  .benchmark-evidence-panel {
+    padding: 14px;
+    border-radius: 12px;
+  }
+
+  .card-head,
+  .benchmark-chart-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .card-actions {
+    flex-wrap: wrap;
+  }
+
+  .metrics,
+  .benchmark-kpis,
+  .benchmark-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chart-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .chart-row > div {
+    min-height: 18px;
+  }
+
+  .document-table {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-row {
+    min-width: 540px;
+  }
+
+  .benchmark-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .benchmark-table-wrap table {
+    min-width: 680px;
+  }
+
+  .benchmark-chart-bars {
+    gap: 10px;
+  }
+
+  .benchmark-chart-column {
+    min-width: 0;
+  }
+
+  .benchmark-header {
+    gap: 12px;
+  }
+
+  .benchmark-meta {
+    gap: 8px 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .comparison-chart {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 380px) {
+  .workspace {
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .sidebar {
+    padding: 10px 8px;
+  }
+
+  .nav-item {
+    font-size: 0.76rem;
+    padding: 9px 6px;
+  }
+
+  .panel,
+  .card,
+  .benchmark-chart-panel,
+  .benchmark-evidence-panel {
+    padding: 11px;
+  }
+
+  .brand strong {
+    font-size: 1rem;
+  }
+
+  .brand small {
+    font-size: 0.7rem;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+  }
+
+  .hero-actions button {
+    width: 100%;
+  }
+}
