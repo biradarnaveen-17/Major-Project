@@ -362,7 +362,7 @@ export default function BhoomiApp() {
   const updateOfficer = (key) => (event) => setOfficerForm((current) => ({ ...current, [key]: event.target.value }));
   const estimateCost = (eth) => (Number(eth) * 3000).toFixed(4);
 
-  async function api(path, options) {
+  const api = useCallback(async (path, options) => {
     const headers = new Headers(options?.headers || {});
     if (session?.token && !headers.has("authorization")) headers.set("authorization", `Bearer ${session.token}`);
     const response = await fetch(`${API_URL}${path}`, { ...options, headers });
@@ -371,7 +371,7 @@ export default function BhoomiApp() {
     if (!response.ok) throw new Error(body.message || `API request failed (${response.status})`);
     if (!contentType.includes("application/json")) throw new Error("The local API returned an invalid response. Restart the backend with npm run start --workspace apps/backend.");
     return body;
-  }
+  }, [session?.token]);
 
   async function loadPortalData() {
     const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult] = await Promise.allSettled([api("/api/dashboard"), api("/api/documents"), api("/api/audit"), api("/api/benchmarks/latest"), api("/api/land-requests"), api("/api/purchasers")]);
@@ -414,7 +414,7 @@ export default function BhoomiApp() {
     } catch (e) {
       console.warn("Failed to load users:", e.message);
     }
-  }, []);
+  }, [api]);
 
   useEffect(() => {
     if (session?.token) {
