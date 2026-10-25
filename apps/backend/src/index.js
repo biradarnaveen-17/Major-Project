@@ -19,6 +19,17 @@ const allowedOrigins = new Set((process.env.CORS_ORIGIN || "http://localhost:517
 const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
 const registryAddress = process.env.LAND_REGISTRY_CONTRACT_ADDRESS || "";
 const REGISTRY_ABI = ["function getLandDetails(uint256) view returns (address,uint96,bytes32,address,uint8,address[])"];
+// The hosted demonstrator keeps Ganache on the private Docker network. The
+// browser reaches it through this deliberately limited JSON-RPC proxy instead
+// of exposing the chain's port or any node-management methods to the internet.
+const permittedRpcMethods = new Set([
+  "eth_blockNumber", "eth_call", "eth_chainId", "eth_estimateGas", "eth_feeHistory",
+  "eth_gasPrice", "eth_getBalance", "eth_getBlockByHash", "eth_getBlockByNumber",
+  "eth_getCode", "eth_getLogs", "eth_getStorageAt", "eth_getTransactionByHash",
+  "eth_getTransactionByBlockHashAndIndex", "eth_getTransactionByBlockNumberAndIndex",
+  "eth_getTransactionCount", "eth_getTransactionReceipt", "eth_maxPriorityFeePerGas",
+  "eth_sendRawTransaction", "net_version", "web3_clientVersion", "web3_sha3"
+]);
 
 function initialState() {
   return {
@@ -348,6 +359,27 @@ app.get("/", (_request, response) => {
 
 app.get("/health", (_request, response) => {
   response.json({ status: "ok", service: "land-registration-api", persistence: "local JSON store" });
+});
+
+app.post("/rpc", async (request, response, next) => {
+  const calls = Array.isArray(request.body) ? request.body : [request.body];
+  if (!calls.length || calls.some((call) => !call || typeof call.method !== "string" || !permittedRpcMethods.has(call.method))) {
+    return response.status(403).json({ message: "This JSON-RPC method is not available in the hosted demonstrator." });
+  }
+
+  try {
+    const upstream = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(request.body),
+      signal: AbortSignal.timeout(10_000)
+    });
+    const payload = await upstream.text();
+    return response.status(upstream.status).type("application/json").send(payload);
+  } catch (error) {
+    if (error.name === "TimeoutError") return response.status(504).json({ message: "The demonstrator blockchain did not respond in time." });
+    return next(error);
+  }
 });
 
 function getWalletForUser(u) {

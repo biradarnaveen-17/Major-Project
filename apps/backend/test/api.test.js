@@ -40,6 +40,13 @@ test("health and document verification workflow persist locally", async () => {
   const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
   assert.equal(health.status, "ok");
 
+  const blockedRpcMethod = await fetch(`${baseUrl}/rpc`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "admin_nodeInfo", params: [] })
+  });
+  assert.equal(blockedRpcMethod.status, 403);
+
   const unauthenticated = await fetch(`${baseUrl}/api/documents`, {
     method: "POST",
     headers: { "content-type": "application/json" },
