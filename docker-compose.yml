@@ -5,7 +5,9 @@ services:
     container_name: land-registration-mongo
     restart: unless-stopped
     ports:
-      - "${MONGO_PORT:-27017}:27017"
+      # Keep database access on the host only. Other Compose services use the
+      # internal `mongo` hostname, so this does not affect local development.
+      - "${MONGO_BIND_ADDRESS:-127.0.0.1}:${MONGO_PORT:-27017}:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-land_admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-change_me}
@@ -32,7 +34,8 @@ services:
       - "--wallet.defaultBalance=1000"
       - "--database.dbPath=/data"
     ports:
-      - "${GANACHE_PORT:-8545}:8545"
+      # The demo chain must never be exposed directly on a public server.
+      - "${GANACHE_BIND_ADDRESS:-127.0.0.1}:${GANACHE_PORT:-8545}:8545"
     volumes:
       - ganache_data:/data
     healthcheck:
@@ -91,7 +94,9 @@ services:
       RPC_URL: http://ganache:8545
       CHAIN_ID: 31337
       LAND_REGISTRY_CONTRACT_ADDRESS: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
-      CORS_ORIGIN: "http://localhost:${FRONTEND_PORT:-5173}"
+      # Set CORS_ORIGIN to the Amplify URL in production. The default retains
+      # the local Vite workflow.
+      CORS_ORIGIN: "${CORS_ORIGIN:-http://localhost:${FRONTEND_PORT:-5173}}"
       JWT_SECRET: ${JWT_SECRET:-docker-dev-jwt-secret-change-in-production}
       # SMTP is optional. When absent, the email verification code is shown
       # in the local demo UI for viva demonstration.
