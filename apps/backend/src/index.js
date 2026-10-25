@@ -312,16 +312,31 @@ function sessionUser(request) {
   return session ? state.users.find((user) => user.id === session.userId) : null;
 }
 
-function requireAdmin(request, response, next) {
+function requireAuthenticated(request, response, next) {
   const user = sessionUser(request);
-  if (!user || user.role !== "admin") return response.status(403).json({ message: "Administrator access is required." });
+  if (!user || user.status !== "Active") return response.status(401).json({ message: "Sign in to continue." });
   request.authUser = user;
   return next();
 }
 
+function requireRoles(...roles) {
+  return [requireAuthenticated, (request, response, next) => {
+    if (!roles.includes(request.authUser.role)) return response.status(403).json({ message: "You do not have permission to perform this action." });
+    return next();
+  }];
+}
+
+const requireAdmin = requireRoles("admin");
+const requireOfficer = requireRoles("officer", "admin");
+const requireCitizen = requireRoles("citizen", "farmer", "purchaser");
+const requireLandApplicant = requireRoles("citizen", "farmer");
+
 app.use(helmet());
 app.use(cors({
-  origin: true,
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    return callback(new Error("Origin is not permitted by this API."));
+  },
   credentials: true
 }));
 app.use(express.json({ limit: "100kb" }));
@@ -341,7 +356,7 @@ function getWalletForUser(u) {
   return new ethers.Wallet(pk).address;
 }
 
-app.post("/api/admin/reset-database", (_req, res) => {
+app.post("/api/admin/reset-database", requireAdmin, (_req, res) => {
   state.users = initialState().users;
   state.farmers = [];
   state.landRequests = [];
@@ -353,7 +368,7 @@ app.post("/api/admin/reset-database", (_req, res) => {
   return res.json({ message: "All previous land records, farmer requests, and non-admin users have been successfully deleted.", state });
 });
 
-app.get("/api/purchasers", (_request, response) => {
+app.get("/api/purchasers", requireAuthenticated, (_request, response) => {
   const purchasers = state.users
     .filter((u) => u.role !== "admin" && u.role !== "officer" && (u.status === "Active" || !u.status))
     .map((u) => ({ id: u.id, fullName: u.fullName, username: u.username, role: u.role, walletAddress: getWalletForUser(u) }));
@@ -399,7 +414,7 @@ app.get("/api/benchmarks/loads", (_request, response) => {
   return response.json(report);
 });
 
-app.post("/api/benchmarks/run-load-test", (_request, response) => {
+app.post("/api/benchmarks/run-load-test", requireAdmin, (_request, response) => {
   try {
     let report = latestLoadReport();
     if (!report) {
@@ -428,7 +443,7 @@ app.post("/api/benchmarks/run-load-test", (_request, response) => {
 
 app.get("/api/benchmarks/runs", (_request, response) => response.json(state.runs));
 
-app.post("/api/benchmarks/runs", (request, response) => {
+app.post("/api/benchmarks/runs", requireAdmin, (request, response) => {
   const { name, results } = request.body || {};
   if (typeof name !== "string" || !name.trim() || !Array.isArray(results)) return response.status(400).json({ message: "name and results[] are required" });
   const run = { id: crypto.randomUUID(), name: name.trim(), results, createdAt: new Date().toISOString() };
@@ -743,11 +758,11 @@ app.post("/api/auth/change-email/step4-verify-new", (request, response) => {
   });
 });
 
-app.get("/api/admin/users", (request, response) => {
+app.get("/api/admin/users", requireAdmin, (request, response) => {
   return response.json(state.users.map((u) => ({ ...safeUser(u), walletAddress: getWalletForUser(u) })));
 });
 
-app.patch("/api/admin/users/:id/status", (request, response) => {
+app.patch("/api/admin/users/:id/status", requireAdmin, (request, response) => {
   const { status } = request.body || {};
   const user = state.users.find((u) => u.id === request.params.id);
   if (!user) return response.status(404).json({ message: "User account not found." });
@@ -766,7 +781,7 @@ app.patch("/api/admin/users/:id/status", (request, response) => {
   return response.json({ message: `User Sri / Smt. ${user.fullName} status updated to ${newStatus}.`, user: safeUser(user) });
 });
 
-app.delete("/api/admin/users/:id", (request, response) => {
+app.delete("/api/admin/users/:id", requireAdmin, (request, response) => {
   const userIndex = state.users.findIndex((u) => u.id === request.params.id);
   if (userIndex === -1) return response.status(404).json({ message: "User account not found." });
   const targetUser = state.users[userIndex];
@@ -813,9 +828,15 @@ app.delete("/api/admin/officers/:id", requireAdmin, (request, response) => {
   return response.json({ message: `Revenue Officer Sri / Smt. ${deletedOfficer.fullName} deleted successfully.` });
 });
 
-app.get("/api/farmers", (request, response) => {
+app.get("/api/farmers", requireAuthenticated, (request, response) => {
   const requestedEmail = String(request.query.email || "").trim().toLowerCase();
-  const farmers = requestedEmail ? state.farmers.filter((farmer) => farmer.email === requestedEmail) : state.farmers;
+  const privileged = ["admin", "officer"].includes(request.authUser.role);
+  if (!privileged && requestedEmail && requestedEmail !== request.authUser.email.toLowerCase()) {
+    return response.status(403).json({ message: "You can view only your own farmer profile." });
+  }
+  const farmers = privileged
+    ? (requestedEmail ? state.farmers.filter((farmer) => farmer.email === requestedEmail) : state.farmers)
+    : state.farmers.filter((farmer) => farmer.email === request.authUser.email.toLowerCase());
   response.json(farmers.map((farmer) => {
     const safeFarmer = { ...farmer };
     delete safeFarmer.otpHash;
@@ -824,7 +845,7 @@ app.get("/api/farmers", (request, response) => {
   }));
 });
 
-app.post("/api/farmers/register", (request, response) => {
+app.post("/api/farmers/register", requireLandApplicant, (request, response) => {
   const { name, email, mobile, walletAddress = "" } = request.body || {};
   if (typeof name !== "string" || name.trim().length < 2 || !validEmail(email) || !validIndianMobile(mobile)) {
     return response.status(400).json({ message: "Farmer name, valid email address, and 10-digit Indian mobile number are required." });
@@ -851,7 +872,7 @@ app.post("/api/farmers/register", (request, response) => {
   return response.status(201).json({ farmer: safeFarmer, demoOtp: otp, message: `Demo verification code prepared for ${maskEmail(farmer.email)}. No real email was sent.` });
 });
 
-app.post("/api/farmers/:id/verify-otp", (request, response) => {
+app.post("/api/farmers/:id/verify-otp", requireLandApplicant, (request, response) => {
   const farmer = state.farmers.find((item) => item.id === request.params.id);
   const { otp } = request.body || {};
   if (!farmer) return response.status(404).json({ message: "Farmer registration was not found." });
@@ -865,48 +886,37 @@ app.post("/api/farmers/:id/verify-otp", (request, response) => {
   return response.json(farmer);
 });
 
-app.get("/api/land-requests", (request, response) => {
+app.get("/api/land-requests", requireAuthenticated, (request, response) => {
   const farmerId = String(request.query.farmerId || "").trim();
-  response.json(farmerId ? state.landRequests.filter((item) => item.farmerId === farmerId) : state.landRequests);
+  if (["admin", "officer"].includes(request.authUser.role)) return response.json(farmerId ? state.landRequests.filter((item) => item.farmerId === farmerId) : state.landRequests);
+  const ownRequests = state.landRequests.filter((item) => item.farmerId === request.authUser.id || item.email === request.authUser.email);
+  return response.json(farmerId ? ownRequests.filter((item) => item.farmerId === farmerId) : ownRequests);
 });
 
-app.get("/api/farmers/:id/land-holdings", (request, response) => {
+app.get("/api/farmers/:id/land-holdings", requireAuthenticated, (request, response) => {
+  if (!["admin", "officer"].includes(request.authUser.role) && request.params.id !== request.authUser.id) return response.status(403).json({ message: "You can view only your own land holdings." });
   const farmer = state.farmers.find((item) => item.id === request.params.id);
   if (!farmer) return response.status(404).json({ message: "Farmer registration was not found." });
   return response.json(state.landRequests.filter((item) => item.farmerId === farmer.id));
 });
 
-app.post("/api/land-requests", (request, response) => {
-  const { farmerId, farmerName, email, mobile, surveyNumber, district, taluk, hobli, village, extent, walletAddress } = request.body || {};
-  let farmer = state.farmers.find((item) => item.id === farmerId && item.verified);
+app.post("/api/land-requests", requireLandApplicant, (request, response) => {
+  const { surveyNumber, district, taluk, hobli, village, extent } = request.body || {};
+  const authenticatedUser = request.authUser;
+  let farmer = state.farmers.find((item) => item.id === authenticatedUser.id && item.verified);
 
   if (!farmer) {
-    const userMatch = state.users.find((u) => u.id === farmerId || u.email === email || `farmer-${u.username}` === farmerId || u.username === farmerId);
-    if (userMatch) {
-      farmer = {
-        id: farmerId || userMatch.id,
-        name: userMatch.fullName || farmerName || "Registered Citizen",
-        email: userMatch.email || email || "",
-        mobile: userMatch.mobile || mobile || "9900000000",
-        walletAddress: getWalletForUser(userMatch),
-        verified: true
-      };
-      if (!state.farmers.some((f) => f.id === farmer.id)) {
-        state.farmers.push(farmer);
-      }
-    }
-  }
-
-  if (!farmer && (farmerName || email)) {
     farmer = {
-      id: farmerId || `farmer-${Date.now()}`,
-      name: String(farmerName || "Citizen").trim(),
-      email: String(email || "").trim(),
-      mobile: String(mobile || "9900000000").trim(),
-      walletAddress: String(walletAddress || "").trim(),
+      id: authenticatedUser.id,
+      name: authenticatedUser.fullName,
+      email: authenticatedUser.email,
+      mobile: authenticatedUser.mobile,
+      walletAddress: getWalletForUser(authenticatedUser),
       verified: true
     };
-    state.farmers.push(farmer);
+    if (!state.farmers.some((f) => f.id === farmer.id)) {
+      state.farmers.push(farmer);
+    }
   }
 
   if (!farmer || !farmer.verified) {
@@ -927,7 +937,7 @@ app.post("/api/land-requests", (request, response) => {
     farmerName: farmer.name,
     email: farmer.email,
     mobile: farmer.mobile,
-    walletAddress: String(walletAddress || farmer.walletAddress).trim(),
+    walletAddress: farmer.walletAddress || getWalletForUser(authenticatedUser),
     surveyNumber: String(surveyNumber).trim(),
     district: String(district).trim(),
     taluk: String(taluk).trim(),
@@ -947,18 +957,18 @@ app.post("/api/land-requests", (request, response) => {
   return response.status(201).json(landRequest);
 });
 
-app.patch("/api/land-requests/:id/verify", (request, response) => {
+app.patch("/api/land-requests/:id/verify", requireOfficer, (request, response) => {
   const landRequest = state.landRequests.find((item) => item.id === request.params.id);
   if (!landRequest) return response.status(404).json({ message: "Land-registration request not found." });
   if (landRequest.status !== "Submitted") return response.status(400).json({ message: "Only newly submitted requests can be verified." });
   landRequest.status = "Verified";
   landRequest.verifiedAt = new Date().toISOString();
-  addAudit({ action: "Revenue details verified", landId: landRequest.surveyNumber, actor: "Revenue officer", detail: `${landRequest.farmerName} request approved for blockchain registration` });
+  addAudit({ action: "Revenue details verified", landId: landRequest.surveyNumber, actor: request.authUser.fullName, detail: `${landRequest.farmerName} request approved for blockchain registration` });
   saveState();
   return response.json(landRequest);
 });
 
-app.patch("/api/land-requests/:id/reject", (request, response) => {
+app.patch("/api/land-requests/:id/reject", requireOfficer, (request, response) => {
   const landRequest = state.landRequests.find((item) => item.id === request.params.id);
   const { reason } = request.body || {};
   if (!landRequest) return response.status(404).json({ message: "Land-registration request not found." });
@@ -966,12 +976,12 @@ app.patch("/api/land-requests/:id/reject", (request, response) => {
   landRequest.status = "Rejected";
   landRequest.rejectedAt = new Date().toISOString();
   landRequest.rejectionReason = String(reason || "Land data is incorrect / Survey details mismatch").trim();
-  addAudit({ action: "Land request rejected", landId: landRequest.surveyNumber, actor: "Revenue officer", detail: `${landRequest.farmerName} request rejected: ${landRequest.rejectionReason}` });
+  addAudit({ action: "Land request rejected", landId: landRequest.surveyNumber, actor: request.authUser.fullName, detail: `${landRequest.farmerName} request rejected: ${landRequest.rejectionReason}` });
   saveState();
   return response.json(landRequest);
 });
 
-app.patch("/api/land-requests/:id/registered", async (request, response) => {
+app.patch("/api/land-requests/:id/registered", requireOfficer, async (request, response) => {
   const landRequest = state.landRequests.find((item) => item.id === request.params.id);
   const { landId, transactionHash } = request.body || {};
   if (!landRequest) return response.status(404).json({ message: "Land-registration request not found." });
@@ -986,21 +996,25 @@ app.patch("/api/land-requests/:id/registered", async (request, response) => {
   landRequest.landId = String(landId);
   landRequest.transactionHash = String(transactionHash);
   landRequest.registeredAt = new Date().toISOString();
-  addAudit({ action: "Land registered on blockchain", landId: landRequest.landId, actor: "Revenue officer", detail: `${landRequest.surveyNumber}; transaction ${landRequest.transactionHash}` });
+  addAudit({ action: "Land registered on blockchain", landId: landRequest.landId, actor: request.authUser.fullName, detail: `${landRequest.surveyNumber}; transaction ${landRequest.transactionHash}` });
   saveState();
   return response.json(landRequest);
 });
 
-app.patch("/api/land-requests/transfer-owner/:landId", (request, response) => {
-  const { newOwnerWallet, newOwnerName, surveyNumber, village, hobli, taluk, district, extent } = request.body || {};
+app.patch("/api/land-requests/transfer-owner/:landId", requireCitizen, (request, response) => {
+  const { newOwnerWallet, surveyNumber, village, hobli, taluk, district, extent } = request.body || {};
+  const expectedWallet = getWalletForUser(request.authUser);
+  if (String(newOwnerWallet || "").toLowerCase() !== expectedWallet.toLowerCase()) {
+    return response.status(403).json({ message: "A transfer record can only be created for the signed-in purchaser." });
+  }
   const landIdStr = String(request.params.landId);
   let landRequest = state.landRequests.find((item) => String(item.landId) === landIdStr);
   
   if (landRequest) {
-    if (newOwnerWallet) landRequest.walletAddress = newOwnerWallet;
-    if (newOwnerName) landRequest.farmerName = newOwnerName;
+    landRequest.walletAddress = expectedWallet;
+    landRequest.farmerName = request.authUser.fullName;
   } else {
-    const matchUser = state.users.find((u) => u.walletAddress?.toLowerCase() === String(newOwnerWallet || "").toLowerCase());
+    const matchUser = request.authUser;
     const finalSurvey = surveyNumber || "12/3A";
     const finalVillage = village || "Jakkur";
     const finalHobli = hobli || "Yelahanka";
@@ -1011,10 +1025,10 @@ app.patch("/api/land-requests/transfer-owner/:landId", (request, response) => {
       id: crypto.randomUUID(),
       landId: landIdStr,
       farmerId: matchUser ? matchUser.id : "user-transferred",
-      farmerName: newOwnerName || (matchUser ? matchUser.fullName : "New Owner"),
+      farmerName: matchUser.fullName,
       email: matchUser ? matchUser.email : "",
       mobile: matchUser ? matchUser.mobile : "",
-      walletAddress: newOwnerWallet,
+      walletAddress: expectedWallet,
       surveyNumber: finalSurvey,
       district: finalDistrict,
       taluk: finalTaluk,
@@ -1030,46 +1044,49 @@ app.patch("/api/land-requests/transfer-owner/:landId", (request, response) => {
     };
     state.landRequests.unshift(landRequest);
   }
-  addAudit({ action: "Ownership mutation transferred", landId: landIdStr, actor: newOwnerName || "Purchaser", detail: `New Khatedar: ${newOwnerName} (${newOwnerWallet})` });
+  addAudit({ action: "Ownership mutation transferred", landId: landIdStr, actor: request.authUser.fullName, detail: `New Khatedar: ${request.authUser.fullName} (${expectedWallet})` });
   saveState();
   return response.json(landRequest);
 });
 
-app.get("/api/documents", (_request, response) => response.json(state.documents));
+app.get("/api/documents", requireAuthenticated, (request, response) => {
+  if (["admin", "officer"].includes(request.authUser.role)) return response.json(state.documents);
+  return response.json(state.documents.filter((document) => document.submittedByUserId === request.authUser.id));
+});
 
-app.post("/api/documents", (request, response) => {
+app.post("/api/documents", requireCitizen, (request, response) => {
   const { landId, category, reference, hash = "" } = request.body || {};
   if (!String(landId || "").trim() || !String(category || "").trim() || !String(reference || "").trim()) {
     return response.status(400).json({ message: "landId, category, and reference are required" });
   }
-  const document = { id: crypto.randomUUID(), landId: String(landId).trim(), category: String(category).trim(), reference: String(reference).trim(), hash: String(hash).trim(), status: "Pending", createdAt: new Date().toISOString(), verifiedAt: null };
+  const document = { id: crypto.randomUUID(), landId: String(landId).trim(), category: String(category).trim(), reference: String(reference).trim(), hash: String(hash).trim(), submittedByUserId: request.authUser.id, status: "Pending", createdAt: new Date().toISOString(), verifiedAt: null };
   state.documents.unshift(document);
-  addAudit({ action: "Document submitted", landId: document.landId, actor: "Owner", detail: `${document.category}: ${document.reference}` });
+  addAudit({ action: "Document submitted", landId: document.landId, actor: request.authUser.fullName, detail: `${document.category}: ${document.reference}` });
   saveState();
   return response.status(201).json(document);
 });
 
-app.patch("/api/documents/:id/verify", (request, response) => {
+app.patch("/api/documents/:id/verify", requireOfficer, (request, response) => {
   const document = state.documents.find((item) => item.id === request.params.id);
   if (!document) return response.status(404).json({ message: "Document not found" });
   document.status = "Verified";
   document.verifiedAt = new Date().toISOString();
-  addAudit({ action: "Document verified", landId: document.landId, actor: "Registrar", detail: `${document.category}: ${document.reference}` });
+  addAudit({ action: "Document verified", landId: document.landId, actor: request.authUser.fullName, detail: `${document.category}: ${document.reference}` });
   saveState();
   return response.json(document);
 });
 
-app.get("/api/audit", (_request, response) => response.json(state.audit));
+app.get("/api/audit", requireAdmin, (_request, response) => response.json(state.audit));
 
-app.post("/api/audit", (request, response) => {
-  const { action, landId, actor, detail } = request.body || {};
+app.post("/api/audit", requireAuthenticated, (request, response) => {
+  const { action, landId, detail } = request.body || {};
   if (typeof action !== "string" || !action.trim()) return response.status(400).json({ message: "action is required" });
-  const entry = addAudit({ action: action.trim(), landId, actor, detail });
+  const entry = addAudit({ action: action.trim(), landId, actor: request.authUser.fullName, detail });
   saveState();
   return response.status(201).json(entry);
 });
 
-app.get("/api/dashboard", (_request, response) => {
+app.get("/api/dashboard", requireAuthenticated, (_request, response) => {
   response.json({
     documents: { total: state.documents.length, verified: state.documents.filter((item) => item.status === "Verified").length, pending: state.documents.filter((item) => item.status === "Pending").length },
     auditEntries: state.audit.length,

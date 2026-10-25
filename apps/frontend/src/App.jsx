@@ -248,6 +248,12 @@ export default function BhoomiApp() {
   const lifecycleSavingPercent = totalBaseLifecycleGas ? ((totalLifecycleSaving / totalBaseLifecycleGas) * 100).toFixed(1) : "0.0";
   const selectedLand = land?.id === String(form.landId) ? land : null;
   const currentAccount = wallet?.account?.toLowerCase();
+  const isRecordedOwner = Boolean(
+    selectedLand?.owner && currentAccount && selectedLand.owner.toLowerCase() === currentAccount
+  );
+  const isPendingPurchaser = Boolean(
+    selectedLand?.pendingOwner && currentAccount && selectedLand.pendingOwner.toLowerCase() === currentAccount
+  );
   const portal = session ? (PORTALS[session.user.role] || PORTALS.farmer) : PORTALS.farmer;
   const accountRole = session ? (session.user.role === "officer" ? "Revenue Officer" : session.user.role === "admin" ? "System Administrator" : session.user.role === "purchaser" ? "Purchaser" : "Farmer") : "Citizen";
   const visibleNav = portal ? NAV.filter(([id]) => portal.views.includes(id)) : [];
@@ -357,7 +363,9 @@ export default function BhoomiApp() {
   const estimateCost = (eth) => (Number(eth) * 3000).toFixed(4);
 
   async function api(path, options) {
-    const response = await fetch(`${API_URL}${path}`, options);
+    const headers = new Headers(options?.headers || {});
+    if (session?.token && !headers.has("authorization")) headers.set("authorization", `Bearer ${session.token}`);
+    const response = await fetch(`${API_URL}${path}`, { ...options, headers });
     const contentType = response.headers.get("content-type") || "";
     const body = contentType.includes("application/json") ? await response.json() : { message: await response.text() };
     if (!response.ok) throw new Error(body.message || `API request failed (${response.status})`);
@@ -717,44 +725,16 @@ export default function BhoomiApp() {
     return new ethers.Contract(address, variant === "base" ? BASE_ABI : OPTIMIZED_ABI, withSigner ? activeSigner : activeProvider);
   }
 
-  async function signerFor(action, targetLand = selectedLand || land) {
+  async function signerFor(action) {
     const activeProvider = wallet?.provider || defaultProvider;
 
     if (action === "approve" || action === "register") {
       return new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
     }
-
-    if (action === "request" && targetLand?.owner && ethers.isAddress(targetLand.owner)) {
-      const ownerAddr = targetLand.owner.toLowerCase();
-      const ownerUser = (purchasers || []).find((p) => String(p.walletAddress || "").toLowerCase() === ownerAddr);
-      if (ownerUser) {
-        const pk = ownerUser.privateKey || ethers.keccak256(ethers.toUtf8Bytes(String(ownerUser.id || ownerUser.username)));
-        return new ethers.Wallet(pk, activeProvider);
-      }
-      if (ownerAddr === "0x70997970c51812dc3a010c7d01b50e0d17dc79c8") return new ethers.Wallet(DEMO_KEYS.buyer, activeProvider);
-      if (ownerAddr === "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc") return new ethers.Wallet(DEMO_KEYS.farmer, activeProvider);
-      if (ownerAddr === "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266") return new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
-
-      const pk = ethers.keccak256(ethers.toUtf8Bytes(String(targetLand.owner)));
-      return new ethers.Wallet(pk, activeProvider);
+    if (!wallet?.signer || !wallet?.account) {
+      throw new Error("Your blockchain wallet is not ready. Please sign in again and wait for it to connect.");
     }
-
-    if (action === "transfer" && targetLand?.pendingOwner && ethers.isAddress(targetLand.pendingOwner)) {
-      const buyerAddr = targetLand.pendingOwner.toLowerCase();
-      const buyerUser = (purchasers || []).find((p) => String(p.walletAddress || "").toLowerCase() === buyerAddr);
-      if (buyerUser) {
-        const pk = buyerUser.privateKey || ethers.keccak256(ethers.toUtf8Bytes(String(buyerUser.id || buyerUser.username)));
-        return new ethers.Wallet(pk, activeProvider);
-      }
-      if (buyerAddr === "0x70997970c51812dc3a010c7d01b50e0d17dc79c8") return new ethers.Wallet(DEMO_KEYS.buyer, activeProvider);
-      if (buyerAddr === "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc") return new ethers.Wallet(DEMO_KEYS.farmer, activeProvider);
-      if (buyerAddr === "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266") return new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
-
-      const pk = ethers.keccak256(ethers.toUtf8Bytes(String(targetLand.pendingOwner)));
-      return new ethers.Wallet(pk, activeProvider);
-    }
-
-    return wallet?.signer || new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
+    return wallet.signer;
   }
 
   function toNumericLandId(id) {
@@ -864,60 +844,6 @@ export default function BhoomiApp() {
     }
   }
 
-  function resolveSignerForAddress(targetAddr) {
-    const activeProvider = wallet?.provider || defaultProvider;
-    if (!targetAddr || !ethers.isAddress(targetAddr)) return new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
-    const clean = targetAddr.toLowerCase();
-
-    if (clean === DEMO_ACCOUNTS.buyer.toLowerCase()) return new ethers.Wallet(DEMO_KEYS.buyer, activeProvider);
-    if (clean === DEMO_ACCOUNTS.farmer.toLowerCase()) return new ethers.Wallet(DEMO_KEYS.farmer, activeProvider);
-    if (clean === DEMO_ACCOUNTS.authority.toLowerCase()) return new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
-    if (DEMO_ACCOUNTS.raj && clean === DEMO_ACCOUNTS.raj.toLowerCase()) return new ethers.Wallet(DEMO_KEYS.raj, activeProvider);
-
-    if (session?.user) {
-      const u = session.user;
-      const uWallet = (u.walletAddress || "").toLowerCase();
-      const derivedWallet = new ethers.Wallet(ethers.keccak256(ethers.toUtf8Bytes(String(u.id || u.username)))).address.toLowerCase();
-      if (clean === uWallet || clean === derivedWallet || (u.fullName && resolveName(targetAddr) === u.fullName)) {
-        const pk = u.privateKey || ethers.keccak256(ethers.toUtf8Bytes(String(u.id || u.username)));
-        return new ethers.Wallet(pk, activeProvider);
-      }
-    }
-
-    const combinedUsers = [...(allUsers || []), ...(purchasers || [])];
-    const match = combinedUsers.find((u) => {
-      const uWallet = (u.walletAddress || "").toLowerCase();
-      if (uWallet === clean) return true;
-      const derivedWallet = new ethers.Wallet(ethers.keccak256(ethers.toUtf8Bytes(String(u.id || u.username)))).address.toLowerCase();
-      return derivedWallet === clean;
-    });
-
-    if (match) {
-      const pk = match.privateKey || ethers.keccak256(ethers.toUtf8Bytes(String(match.id || match.username)));
-      return new ethers.Wallet(pk, activeProvider);
-    }
-
-    if (wallet?.account && wallet.account.toLowerCase() === clean && wallet.signer) {
-      return wallet.signer;
-    }
-
-    return new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
-  }
-
-  async function signerFor(action, targetLand = selectedLand || land) {
-    const activeProvider = wallet?.provider || defaultProvider;
-    if (action === "approve" || action === "register") {
-      return new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
-    }
-    if (action === "request") {
-      return resolveSignerForAddress(targetLand?.owner || land?.owner || form.owner);
-    }
-    if (action === "transfer") {
-      return resolveSignerForAddress(targetLand?.pendingOwner);
-    }
-    return wallet?.signer || new ethers.Wallet(DEMO_KEYS.authority, activeProvider);
-  }
-
   async function submit(action) {
     if (!form.landId) {
       setMessage("Please enter or select a valid land ID first.");
@@ -925,6 +851,11 @@ export default function BhoomiApp() {
     }
     const numericLandId = toNumericLandId(form.landId);
     const targetLand = land || (allMyHoldings || []).find((l) => String(l.landId || l.id) === String(form.landId));
+    const isOfficer = ["officer", "admin"].includes(session?.user?.role);
+    if ((action === "register" || action === "approve") && !isOfficer) {
+      setMessage("Only a Revenue Officer can perform this action.");
+      return;
+    }
     setBusyAction(action);
     setMessage(`Preparing ${action} transaction for land ID #${form.landId}...`);
 
@@ -979,14 +910,6 @@ export default function BhoomiApp() {
       }
       if (action === "request") {
         let targetBuyer = form.buyer;
-        const currentOwnerAddr = (targetLand?.owner || land?.owner || wallet?.account || "").toLowerCase();
-        if (targetBuyer && targetBuyer.toLowerCase() === currentOwnerAddr) {
-          throw new Error(`Cannot transfer land to the current owner (${resolveName(currentOwnerAddr)}). Please select a different registered purchaser.`);
-        }
-        if (!ethers.isAddress(targetBuyer) || targetBuyer.toLowerCase() === currentOwnerAddr) {
-          const fallback = availablePurchasers[0] || purchasers.find((p) => p.walletAddress.toLowerCase() !== currentOwnerAddr);
-          if (fallback) targetBuyer = fallback.walletAddress;
-        }
         if (!ethers.isAddress(targetBuyer)) throw new Error("Please select a registered purchaser from the dropdown list.");
 
         const authoritySigner = new ethers.Wallet(DEMO_KEYS.authority, wallet?.provider || defaultProvider);
@@ -1001,35 +924,18 @@ export default function BhoomiApp() {
         }
 
         if (!details) {
-          const ownerAddr = targetLand?.owner || wallet?.account || DEMO_ACCOUNTS.farmer;
-          const surveyNum = targetLand?.survey ? targetLand.survey : `SUR-${numericLandId}`;
-          const loc = targetLand?.location || `${form.village || "Jakkur"}, Bengaluru North, Bengaluru Urban`;
-          const areaVal = targetLand?.area || form.area || "48";
-          const uniqueParcelKey = `${surveyNum}-${numericLandId}`;
-          const metaHash = ethers.keccak256(ethers.toUtf8Bytes(parcelMetadata(uniqueParcelKey, form.district, form.taluk, form.hobli, form.village)));
-
-          try {
-            const isReg = await authorityRegistry.registrars(authoritySigner.address).catch(() => true);
-            if (!isReg) {
-              const setRegTx = await authorityRegistry.setRegistrar(authoritySigner.address, true);
-              await setRegTx.wait();
-            }
-          } catch { /* Ignore */ }
-
-          try {
-            const regTx = landVariant === "base"
-              ? await authorityRegistry["registerLand(uint256,address,string,string,uint256)"](numericLandId, ownerAddr, surveyNum, loc, areaVal)
-              : await authorityRegistry["registerLand(uint256,address,bytes32,uint96)"](numericLandId, ownerAddr, metaHash, areaVal);
-            await regTx.wait();
-            const raw = await authorityRegistry.getLandDetails(numericLandId).catch(() => null);
-            details = parseLandDetails(raw, landVariant);
-          } catch (regErr) {
-            console.warn("Auto-register fallback attempt:", regErr.message);
-          }
+          throw new Error(`Land #${form.landId} is not registered on the active contract. A Revenue Officer must register it before a mutation can be requested.`);
         }
 
-        const onChainOwner = details?.owner || targetLand?.owner || wallet?.account;
-        const requestSigner = resolveSignerForAddress(onChainOwner);
+        const onChainOwner = details.owner;
+        const requestSigner = await signerFor("request");
+        const requestSignerAddress = (await requestSigner.getAddress()).toLowerCase();
+        if (onChainOwner.toLowerCase() !== requestSignerAddress) {
+          throw new Error(`Only the recorded owner (${shortAddress(onChainOwner)}) can submit a mutation request for land #${form.landId}.`);
+        }
+        if (targetBuyer.toLowerCase() === requestSignerAddress) {
+          throw new Error("You cannot nominate yourself as the purchaser. Please select a different registered purchaser.");
+        }
 
         try {
           const activeProvider = wallet?.provider || defaultProvider;
@@ -1072,33 +978,26 @@ export default function BhoomiApp() {
           /* Fallback to local record if getLandDetails throws */
         }
 
-        const onChainStatus = details ? details.status : Number(targetLand?.status || 0);
-        let pendingOwnerAddr = (details && details.pendingOwner && details.pendingOwner !== ethers.ZeroAddress) ? details.pendingOwner : (targetLand?.pendingOwner || form.buyer);
-
-        if (!pendingOwnerAddr || pendingOwnerAddr === ethers.ZeroAddress) {
-          for (const v of ["optimized", "base"]) {
-            try {
-              const altC = new ethers.Contract(ADDRESSES[v], v === "base" ? BASE_ABI : OPTIMIZED_ABI, authoritySigner);
-              const altRaw = await altC.getLandDetails(numericLandId);
-              const altDet = parseLandDetails(altRaw, v);
-              if (altDet && altDet.pendingOwner && altDet.pendingOwner !== ethers.ZeroAddress) {
-                pendingOwnerAddr = altDet.pendingOwner;
-                break;
-              }
-            } catch { /* Ignore */ }
-          }
+        if (!details) {
+          throw new Error(`Land #${form.landId} is not registered on the active contract.`);
         }
+
+        const onChainStatus = details.status;
+        const pendingOwnerAddr = details.pendingOwner;
 
         if (!pendingOwnerAddr || pendingOwnerAddr === ethers.ZeroAddress) {
           throw new Error(`No pending purchaser found for land #${form.landId}. Please submit a mutation request (Step 1) first.`);
         }
 
-        if (onChainStatus === 1) {
-          const approveTx = await authorityRegistry.approveTransfer(numericLandId);
-          await approveTx.wait();
+        if (onChainStatus !== 2) {
+          throw new Error("This mutation has not been approved by a Revenue Officer yet.");
         }
 
-        transferSigner = resolveSignerForAddress(pendingOwnerAddr);
+        transferSigner = await signerFor("transfer");
+        const transferSignerAddress = (await transferSigner.getAddress()).toLowerCase();
+        if (pendingOwnerAddr.toLowerCase() !== transferSignerAddress) {
+          throw new Error(`Only the nominated purchaser (${shortAddress(pendingOwnerAddr)}) can finalize this mutation.`);
+        }
 
         try {
           const activeProvider = wallet?.provider || defaultProvider;
@@ -1715,7 +1614,7 @@ export default function BhoomiApp() {
                     })}
                   </SelectField>
                 )}
-                {(!selectedLand || selectedLand.status === 0) && (session?.user?.role !== "officer" && session?.user?.role !== "admin") && (
+                {selectedLand?.status === 0 && isRecordedOwner && (session?.user?.role !== "officer" && session?.user?.role !== "admin") && (
                   <div style={{ display: "grid", gap: "10px", gridColumn: "1 / -1", background: "#f8fafc", padding: "14px", borderRadius: "10px", border: "1px solid #cbd5e1", margin: "6px 0" }}>
                     <Field label="Instant Purchaser Search (Type Name or Username)" placeholder="Type name or username to search (e.g. sudeep, raj, hemant)..." value={purchaserQuery} onChange={(e) => setPurchaserQuery(e.target.value)} />
 
@@ -1769,7 +1668,7 @@ export default function BhoomiApp() {
                   </div>
                 )}
 
-                {(!selectedLand || selectedLand.status === 0) && (session?.user?.role === "officer" || session?.user?.role === "admin") && (
+                {selectedLand?.status === 0 && (session?.user?.role === "officer" || session?.user?.role === "admin") && (
                   <div style={{ gridColumn: "1 / -1", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "14px", borderRadius: "8px", color: "#1e40af" }}>
                     <strong>Revenue Officer Notice: Awaiting Owner Nomination</strong>
                     <p style={{ margin: "4px 0 0 0", fontSize: "0.9rem" }}>
@@ -1795,7 +1694,13 @@ export default function BhoomiApp() {
               )}
 
               <div className="actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
-                {(!selectedLand || selectedLand.status === 0) && session?.user?.role !== "officer" && session?.user?.role !== "admin" && (
+                {selectedLand?.status === 0 && session?.user?.role !== "officer" && session?.user?.role !== "admin" && !isRecordedOwner && (
+                  <div style={{ background: "#fff8eb", border: "1px solid #ead8b5", padding: "10px 14px", borderRadius: "6px", color: "#84725a", fontWeight: "500" }}>
+                    Only the recorded owner ({resolveName(selectedLand.owner)}) can submit a mutation request for this land.
+                  </div>
+                )}
+
+                {selectedLand?.status === 0 && session?.user?.role !== "officer" && session?.user?.role !== "admin" && isRecordedOwner && (
                   <button type="button" disabled={busyAction !== null || !form.landId} onClick={() => submit("request")} style={{ background: "#991b1b", color: "#fff", padding: "12px 20px", fontWeight: "bold" }}>
                     {busyAction === "request" ? "Submitting request..." : "1. Submit Mutation Request (Owner)"}
                   </button>
@@ -1813,10 +1718,16 @@ export default function BhoomiApp() {
                   </div>
                 )}
 
-                {selectedLand?.status === 2 && session?.user?.role !== "officer" && session?.user?.role !== "admin" && (
+                {selectedLand?.status === 2 && session?.user?.role !== "officer" && session?.user?.role !== "admin" && isPendingPurchaser && (
                   <button type="button" disabled={busyAction !== null || !selectedLand} onClick={() => submit("transfer")} style={{ background: "#15803d", color: "#fff", padding: "12px 20px", fontWeight: "bold" }}>
                     {busyAction === "transfer" ? "Completing..." : "3. Complete Mutation & Finalize Ownership (Purchaser)"}
                   </button>
+                )}
+
+                {selectedLand?.status === 2 && session?.user?.role !== "officer" && session?.user?.role !== "admin" && !isPendingPurchaser && (
+                  <div style={{ background: "#fff8eb", border: "1px solid #ead8b5", padding: "10px 14px", borderRadius: "6px", color: "#84725a", fontWeight: "500" }}>
+                    Only the nominated purchaser ({resolveName(selectedLand.pendingOwner)}) can finalize this mutation.
+                  </div>
                 )}
 
                 {isCompletedTransfer && (
