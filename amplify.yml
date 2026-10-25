@@ -6,10 +6,10 @@ applications:
         preBuild:
           commands:
             # The npm workspaces lockfile lives at the repository root.
-            - cd ../.. && npm ci
+            - npm --prefix ../.. ci
         build:
           commands:
-            - cd ../.. && npm run build --workspace apps/frontend
+            - npm --prefix ../.. run build --workspace @land-registration/frontend
       artifacts:
         baseDirectory: dist
         files:
