@@ -1131,16 +1131,9 @@ export default function BhoomiApp() {
           await api(`/api/land-requests/transfer-owner/${form.landId}`, {
             method: "PATCH",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              newOwnerWallet,
-              newOwnerName,
-              surveyNumber: targetLand?.survey || existingMeta?.surveyNumber || form.survey || "12/3A",
-              village: targetLand?.location ? targetLand.location.split(",")[0] : (existingMeta?.village || form.village || "Jakkur"),
-              hobli: existingMeta?.hobli || form.hobli || "Yelahanka",
-              taluk: existingMeta?.taluk || form.taluk || "Bengaluru North",
-              district: existingMeta?.district || form.district || "Bengaluru Urban",
-              extent: targetLand?.area || existingMeta?.extent || form.area || "48"
-            })
+            // The backend resolves the original registered parcel by Land ID.
+            // Send only the new owner; never send form defaults as land metadata.
+            body: JSON.stringify({ newOwnerWallet })
           });
           const savedOwned = JSON.parse(localStorage.getItem("bhoomi_transferred_lands") || "[]");
           if (!savedOwned.includes(String(form.landId))) {
