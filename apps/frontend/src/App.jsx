@@ -1397,9 +1397,575 @@ export default function BhoomiApp() {
                 <p className="hint">Gas data is generated on a local Hardhat EVM. It is not Ethereum mainnet pricing.</p>
               </Card>
             )}
+
+            <Card title="Access boundary">
+              <div className="contribution">
+                <div><strong>Role-limited navigation</strong><p>Other portal actions are hidden until the appropriate user signs in.</p></div>
+                <div><strong>Blockchain identity</strong><p>The local role account signs only its permitted workflow transaction.</p></div>
+                <div><strong>Traceable activity</strong><p>Confirmed operations are retained in the audit register.</p></div>
+              </div>
+            </Card>
+
+            <Card title="Current system posture" action={<button className="text-button" onClick={loadPortalData}>Refresh portal data</button>}>
+              <div className="posture">
+                <Pill tone="success">Role: {accountRole}</Pill>
+                <Pill>Network: {wallet?.chainId || "-"}</Pill>
+                <Pill>Storage: local JSON demo store</Pill>
+                <Pill>Records: blockchain lookup</Pill>
+              </div>
+            </Card>
+          </section>
+        )}
+
+        {view === "farmer" && (
+          <section className="page-grid documents">
+            <Card title="Authenticated farmer identity" action={<button type="button" className="small-button" onClick={() => setShowEmailChangeModal(true)}>Change Email ID</button>}>
+              <Pill tone="success">Email-code verified</Pill>
+              <p style={{ marginTop: "8px" }}><strong>{session.user.fullName}</strong> | username: {session.user.username} | {session.user.email} | mobile ending {session.user.mobile ? session.user.mobile.slice(-4) : "0000"}</p>
+              <p className="hint">Identity registration and email-code verification were completed before access to this portal. Aadhaar remains off-chain as a secure hash.</p>
+            </Card>
+            <Card title="Submit land-registration request">
+              <form onSubmit={submitLandRequest}>
+                <div className="form-grid">
+                  <Field label="Survey number" value={form.survey} onChange={update("survey")} placeholder="e.g. 12/3A" />
+                  <SelectField label="District" value={form.district} onChange={(e) => {
+                    const selectedDist = e.target.value;
+                    const taluks = Object.keys(KARNATAKA_REVENUE_HIERARCHY[selectedDist] || {});
+                    const firstTaluk = taluks[0] || "";
+                    const hoblis = KARNATAKA_REVENUE_HIERARCHY[selectedDist]?.[firstTaluk] || [];
+                    const firstHobli = hoblis[0] || "";
+
+                    setForm((curr) => ({
+                      ...curr,
+                      district: selectedDist,
+                      taluk: firstTaluk,
+                      hobli: firstHobli
+                    }));
+                  }}>
+                    {Object.keys(KARNATAKA_REVENUE_HIERARCHY).map((dist) => (
+                      <option key={dist} value={dist}>{dist}</option>
+                    ))}
+                  </SelectField>
+
+                  <SelectField label="Taluk" value={form.taluk} onChange={(e) => {
+                    const selectedTaluk = e.target.value;
+                    const hoblis = KARNATAKA_REVENUE_HIERARCHY[form.district]?.[selectedTaluk] || [];
+                    const firstHobli = hoblis[0] || "";
+
+                    setForm((curr) => ({
+                      ...curr,
+                      taluk: selectedTaluk,
+                      hobli: firstHobli
+                    }));
+                  }}>
+                    {Object.keys(KARNATAKA_REVENUE_HIERARCHY[form.district] || {}).map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </SelectField>
+
+                  <SelectField label="Hobli" value={form.hobli} onChange={(e) => {
+                    const selectedHobli = e.target.value;
+                    setForm((curr) => ({
+                      ...curr,
+                      hobli: selectedHobli
+                    }));
+                  }}>
+                    {(KARNATAKA_REVENUE_HIERARCHY[form.district]?.[form.taluk] || []).map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </SelectField>
+
+                  <Field label="Village" value={form.village} onChange={update("village")} placeholder="Type village name..." />
+
+                  <Field label="Extent (gunta)" type="number" min="1" value={form.area} onChange={update("area")} />
+                </div>
+                <p className="hint">A matching Survey Number and revenue location can be requested only once. The request is first sent to the Revenue Officer; blockchain registration follows verification.</p>
+                <button type="submit">Submit land-registration request</button>
+              </form>
+            </Card>
+          </section>
+        )}
+
+        {view === "farmer" && farmer?.verified && (
+          <section className="page-grid documents">
+            <Card title="My land holdings" action={<Pill tone="success">{allMyHoldings.length} parcel{allMyHoldings.length === 1 ? "" : "s"}</Pill>}>
+              <p className="hint">Each Survey Number is listed separately. Registered parcels show their blockchain Land ID and transaction hash.</p>
+              <div className="document-table">
+                <div className="table-row heading"><span>Survey number</span><span>Revenue location</span><span>Status</span><span>Blockchain record</span></div>
+                {allMyHoldings.map((request) => (
+                  <div className="table-row" key={request.id}>
+                    <span><strong>{request.surveyNumber}</strong><small>{request.extent} gunta</small></span>
+                    <span>{request.village}, {request.hobli}<small>{request.taluk}, {request.district}</small></span>
+                    <span>
+                      <Pill tone={request.status === "Registered on blockchain" ? "success" : request.status === "Verified" ? "purple" : request.status === "Rejected" ? "danger" : "warning"}>
+                        {request.status}
+                      </Pill>
+                    </span>
+                    <span>
+                      {request.status === "Registered on blockchain" && request.landId ? (
+                        <div style={{ display: "grid", gap: "6px" }}>
+                          <strong>Land #{request.landId}</strong>
+                          <button className="small-button" onClick={async (e) => {
+                            e.preventDefault();
+                            const found = await findLand(request.landId).catch(() => null);
+                            setCertificateLand({ id: String(request.landId), survey: request.surveyNumber, location: `${request.village}, ${request.hobli}, ${request.taluk}, ${request.district}` });
+                          }}>View Certificate</button>
+                        </div>
+                      ) : request.status === "Verified" ? (
+                        <small style={{ color: "#2563eb", fontWeight: "600" }}>Verified (Awaiting Blockchain Minting)</small>
+                      ) : request.status === "Rejected" ? (
+                        <small style={{ color: "#dc2626", fontWeight: "600" }}>Registration Rejected</small>
+                      ) : (
+                        <small style={{ color: "#d97706", fontWeight: "600" }}>Pending Officer Verification</small>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {allMyHoldings.length === 0 && <p className="empty">No land parcels have been submitted or transferred to this account yet.</p>}
+            </Card>
+
+            <Card title="Search & Verify Any Blockchain Land Record">
+              <div className="inline">
+                <Field label="Blockchain land ID" value={form.lookupId} onChange={update("lookupId")} />
+                <button type="button" onClick={(e) => { e.preventDefault(); findLand(form.lookupId); }}>View land record</button>
+              </div>
+              {land ? (
+                <div className="record">
+                  <div className="record-head"><strong>Land record #{land.id}</strong><Pill tone={land.status === 0 ? "success" : "warning"}>{statusText[land.status]}</Pill></div>
+                  <dl>
+                    <dt>Khatedar / Registered Owner Name</dt><dd style={{ fontSize: "1.05rem", fontWeight: "bold", color: "#1e3a8a" }}>Sri / Smt. {resolveName(land.owner)}</dd>
+                    <dt>Recorded Owner Wallet</dt><dd>{land.owner}</dd>
+                    <dt>Pending Purchaser</dt><dd>{land.pendingOwner && land.pendingOwner !== ethers.ZeroAddress ? `${resolveName(land.pendingOwner)} (${shortAddress(land.pendingOwner)})` : "None"}</dd>
+                    <dt>Extent (gunta)</dt><dd>{land.area}</dd>
+                    {land.survey && <><dt>Survey / revenue location</dt><dd>{land.survey} / {land.location}</dd></>}
+                    {land.metadataHash && <><dt>Revenue metadata hash</dt><dd>{land.metadataHash}</dd></>}
+                    <dt>Mutation history</dt><dd>{land.history.map((h) => resolveName(h)).join(" ->")}</dd>
+                  </dl>
+                  <button className="account-button" style={{ marginTop: "14px", width: "100%" }} onClick={() => setCertificateLand(land)}>Generate Digital RTC Certificate (QR Verified)</button>
+                </div>
+              ) : <p className="empty">Search a registered blockchain ID (e.g. 9002) to inspect ownership and generate RTC certificate.</p>}
+            </Card>
+          </section>
+        )}
+
+        {view === "agent" && (
+          <section className="page-grid documents">
+            <Card title="Revenue Officer verification desk" action={<Pill>{landRequests.filter((item) => item.status === "Submitted").length} awaiting verification</Pill>}>
+              <p className="hint">Verify the farmer's request and revenue details first. Only a verified request can be registered on blockchain.</p>
+              <div className="document-table">
+                <div className="table-row heading"><span>Farmer / survey</span><span>Revenue location</span><span>Status</span><span>Action</span></div>
+                {landRequests.map((request) => (
+                  <div className="table-row" key={request.id}>
+                    <span><strong>{request.farmerName}</strong><small>{request.surveyNumber} | mobile ending {request.mobile ? request.mobile.slice(-4) : "0000"}</small></span>
+                    <span>{request.village}, {request.hobli}<small>{request.taluk}, {request.district} | {request.extent} gunta</small></span>
+                    <span><Pill tone={request.status === "Registered on blockchain" ? "success" : request.status === "Verified" ? "purple" : request.status === "Rejected" ? "danger" : "warning"}>{request.status}</Pill></span>
+                    <span>
+                      {request.status === "Submitted" ? (
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                          <button className="small-button" onClick={() => verifyLandRequest(request.id)}>Verify details</button>
+                          <button className="small-button" style={{ backgroundColor: "#dc2626", color: "#ffffff", borderColor: "#b91c1c" }} onClick={() => rejectLandRequest(request.id)}>Reject</button>
+                        </div>
+                      ) : request.status === "Verified" ? (
+                        <button className="small-button" onClick={() => prepareBlockchainRegistration(request)}>Register on blockchain</button>
+                      ) : request.status === "Rejected" ? (
+                        <small style={{ color: "#dc2626", fontWeight: "bold" }}>Rejected: {request.rejectionReason || "Details mismatch"}</small>
+                      ) : (
+                        <div style={{ display: "grid", gap: "4px" }}>
+                          <small>Land ID {request.landId}</small>
+                          <button className="small-button" onClick={async (e) => {
+                            e.preventDefault();
+                            const found = await findLand(request.landId).catch(() => null);
+                            setCertificateLand({ id: String(request.landId), survey: request.surveyNumber, location: `${request.village}, ${request.hobli}, ${request.taluk}, ${request.district}` });
+                          }}>Issue RTC</button>
+                        </div>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {landRequests.length === 0 && <p className="empty">No farmer land-registration requests yet. Use Farmer onboarding to create one.</p>}
+            </Card>
+
+            <Card title="Officer workflow">
+              <ul className="checklist">
+                <li><span>1. Verify farmer</span>Farmer mobile OTP must be verified before a request can be submitted.</li>
+                <li><span>2. Verify revenue details</span>Confirm survey number and District, Taluk, Hobli, Village, and extent.</li>
+                <li><span>3. Register on blockchain</span>The verified request pre-fills the registry form for the revenue officer.</li>
+                <li><span>4. Process mutation</span>The recorded owner can later initiate transfer; officer verification and purchaser consent remain mandatory.</li>
+              </ul>
+            </Card>
+          </section>
+        )}
+
+        {view === "registry" && (
+          <section className="page-grid registry">
+            <Card title="Blockchain registry connection">
+              <div className="mode-row">
+                <div className="switch">
+                  <button className={variant === "optimized" ? "active" : ""} onClick={() => chooseVariant("optimized")}>Optimized registry</button>
+                  <button className={variant === "base" ? "active" : ""} onClick={() => chooseVariant("base")}>Reference registry</button>
+                </div>
+                <Pill tone={isRegistrar ? "success" : "neutral"}>{accountRole}</Pill>
+              </div>
+              <Field label="Deployed blockchain contract" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Deploy locally, then paste the address" />
+            </Card>
+
+            <Card title="Register land - Karnataka revenue details">
+              <div className="form-grid">
+                <Field label="Blockchain land ID" value={form.landId} onChange={update("landId")} />
+                <Field label="Khatedar / owner wallet" value={form.owner} onChange={update("owner")} />
+                <Field label="Survey number" value={form.survey} onChange={update("survey")} />
+                <Field label="District" value={form.district} onChange={update("district")} />
+                <Field label="Taluk" value={form.taluk} onChange={update("taluk")} />
+                <Field label="Hobli" value={form.hobli} onChange={update("hobli")} />
+                <Field label="Village" value={form.village} onChange={update("village")} />
+                <Field label="Extent (gunta)" type="number" min="1" value={form.area} onChange={update("area")} />
+              </div>
+              <p className="hint">1 acre = 40 gunta. Land IDs must be unique. The optimized registry saves a deterministic hash of survey and revenue-location data; the reference registry stores them verbatim.</p>
+              <button type="button" disabled={busyAction !== null} onClick={(e) => { e.preventDefault(); submit("register"); }}>
+                {busyAction === "register" ? "Recording in blockchain..." : pendingRequestId ? "Register verified request on blockchain" : "Register land record"}
+              </button>
+            </Card>
+
+            <Card title="Search land record">
+              <div className="inline">
+                <Field label="Blockchain land ID" value={form.lookupId} onChange={update("lookupId")} />
+                <button onClick={() => findLand()}>View land record</button>
+              </div>
+              {land ? (
+                <div className="record">
+                  <div className="record-head"><strong>Land record #{land.id}</strong><Pill tone={land.status === 0 ? "success" : "warning"}>{statusText[land.status]}</Pill></div>
+                  <dl>
+                    <dt>Khatedar / Registered Owner Name</dt><dd style={{ fontSize: "1.05rem", fontWeight: "bold", color: "#1e3a8a" }}>Sri / Smt. {resolveName(land.owner)}</dd>
+                    <dt>Recorded Owner Wallet</dt><dd>{land.owner}</dd>
+                    <dt>Pending Purchaser</dt><dd>{land.pendingOwner && land.pendingOwner !== ethers.ZeroAddress ? `${resolveName(land.pendingOwner)} (${shortAddress(land.pendingOwner)})` : "None"}</dd>
+                    <dt>Extent (gunta)</dt><dd>{land.area}</dd>
+                    {land.survey && <><dt>Survey / revenue location</dt><dd>{land.survey} / {land.location}</dd></>}
+                    {land.metadataHash && <><dt>Revenue metadata hash</dt><dd>{land.metadataHash}</dd></>}
+                    <dt>Mutation history</dt><dd>{land.history.map((h) => resolveName(h)).join(" ->")}</dd>
+                  </dl>
+                  <button className="account-button" style={{ marginTop: "14px", width: "100%" }} onClick={() => setCertificateLand(land)}>Generate Digital RTC Certificate (QR Verified)</button>
+                </div>
+              ) : <p className="empty">Search a registered blockchain ID such as 9002 to inspect a land record.</p>}
+            </Card>
+          </section>
+        )}
+
+        {view === "transfer" && (
+          <section className="page-grid transfer">
+            <Card title="Mutation and ownership transfer">
+              <div className="workflow">
+                <div className={workflowStage >= 1 ? "workflow-step complete" : "workflow-step"}><span>1</span><div><strong>Mutation request</strong><small>Recorded owner nominates purchaser</small></div></div>
+                <div className={workflowStage >= 2 ? "workflow-step complete" : "workflow-step"}><span>2</span><div><strong>Revenue verification</strong><small>Revenue officer validates mutation</small></div></div>
+                <div className={workflowStage >= 3 ? "workflow-step complete" : "workflow-step"}><span>3</span><div><strong>Purchaser consent</strong><small>Blockchain ownership is finalized</small></div></div>
+              </div>
+
+              <div className="form-grid transfer-fields">
+                <Field label="Active blockchain land ID" value={form.landId} onChange={(e) => { update("landId")(e); findLand(e.target.value); }} placeholder="e.g. 9002" />
+                {allSelectableParcels.length > 0 && (
+                  <SelectField label="Select Registered Land Parcel" value={form.landId} onChange={(e) => { update("landId")(e); findLand(e.target.value); }}>
+                    {allSelectableParcels.map((item) => {
+                      const val = item.landId || item.id.replace("chain-", "").replace("selected-", "");
+                      const prefix = item.isPendingIncoming ? "[Incoming Request]" : "[My Parcel]";
+                      return (
+                        <option key={item.id} value={val}>
+                          {prefix} {item.surveyNumber} ({item.village}) - Land #{val}
+                        </option>
+                      );
+                    })}
+                  </SelectField>
+                )}
+                {selectedLand?.status === 0 && isRecordedOwner && (session?.user?.role !== "officer" && session?.user?.role !== "admin") && (
+                  <div style={{ display: "grid", gap: "10px", gridColumn: "1 / -1", background: "#f8fafc", padding: "14px", borderRadius: "10px", border: "1px solid #cbd5e1", margin: "6px 0" }}>
+                    <Field label="Instant Purchaser Search (Type Name or Username)" placeholder="Type name or username to search (e.g. sudeep, raj, hemant)..." value={purchaserQuery} onChange={(e) => setPurchaserQuery(e.target.value)} />
+                    {purchaserQuery.trim() !== "" && (
+                      <div style={{ display: "grid", gap: "6px" }}>
+                        <label style={{ fontSize: "0.85rem", fontWeight: "600", color: "#334155" }}>Matching Search Results ({filteredPurchasers.length}):</label>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", margin: "4px 0" }}>
+                          {filteredPurchasers.map((p) => {
+                            const isSelected = form.buyer === p.walletAddress;
+                            return (
+                              <button key={p.id} type="button" style={{ padding: "8px 14px", borderRadius: "6px", border: isSelected ? "2px solid #1e3a8a" : "1px solid #94a3b8", backgroundColor: isSelected ? "#1e3a8a" : "#ffffff", color: isSelected ? "#ffffff" : "#0f172a", fontWeight: isSelected ? "bold" : "600", fontSize: "0.9rem", cursor: "pointer" }} onClick={(e) => { e.preventDefault(); setForm((curr) => ({ ...curr, buyer: p.walletAddress })); }}>
+                                {p.fullName} (@{p.username})
+                              </button>
+                            );
+                          })}
+                          {filteredPurchasers.length === 0 && (
+                            <span style={{ fontSize: "0.85rem", color: "#dc2626", fontWeight: "500" }}>No registered purchaser matches "{purchaserQuery}".</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <SelectField label="Select Registered Purchaser for Transfer" value={form.buyer} onChange={update("buyer")}>
+                      <option value="">-- Select Registered Purchaser --</option>
+                      {availablePurchasers.map((p) => (
+                        <option key={p.id} value={p.walletAddress}>{p.fullName} ({p.username}) - {shortAddress(p.walletAddress)}</option>
+                      ))}
+                    </SelectField>
+                  </div>
+                )}
+
+                {selectedLand?.status === 0 && (session?.user?.role === "officer" || session?.user?.role === "admin") && (
+                  <div style={{ gridColumn: "1 / -1", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "14px", borderRadius: "8px", color: "#1e40af" }}>
+                    <strong>Revenue Officer Notice: Awaiting Owner Nomination</strong>
+                    <p style={{ margin: "4px 0 0 0", fontSize: "0.9rem" }}>The recorded Khatedar / Owner ({selectedLand ? `Sri / Smt. ${resolveName(selectedLand.owner)}` : "Land Owner"}) must sign in to nominate a purchaser and submit the mutation request.</p>
+                  </div>
+                )}
+              </div>
+
+              {selectedLand ? (
+                <div className="record" style={{ margin: "14px 0", background: "#fffaf2", padding: "14px", borderRadius: "8px", border: "1px solid #e4d2ae" }}>
+                  <div className="record-head" style={{ marginBottom: "8px" }}><strong style={{ fontSize: "1.05rem", color: "#1e3a8a" }}>Selected Land Record #{selectedLand.id}</strong><Pill tone={selectedLand.status === 2 ? "success" : "warning"}>{statusText[selectedLand.status]}</Pill></div>
+                  <dl style={{ margin: 0 }}>
+                    <dt>Current Khatedar / Owner</dt><dd><strong> Sri / Smt. {resolveName(selectedLand.owner)}</strong> ({shortAddress(selectedLand.owner)})</dd>
+                    <dt>Nominated Purchaser</dt><dd>{selectedLand.pendingOwner && selectedLand.pendingOwner !== ethers.ZeroAddress ? `${resolveName(selectedLand.pendingOwner)} (${shortAddress(selectedLand.pendingOwner)})` : "None"}</dd>
+                    <dt>Extent (Area)</dt><dd>{selectedLand.area} Gunta</dd>
+                  </dl>
+                </div>
+              ) : (
+                <div style={{ background: "#fff8eb", padding: "12px 14px", borderRadius: "8px", border: "1px solid #ead8b5", margin: "14px 0" }}>
+                  <p className="empty" style={{ margin: 0, color: "#84725a" }}>Enter a registered land ID or select from your owned parcels to view ownership details.</p>
+                </div>
+              )}
+
+              <div className="actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "14px" }}>
+                {selectedLand?.status === 0 && session?.user?.role !== "officer" && session?.user?.role !== "admin" && !isRecordedOwner && (
+                  <div style={{ background: "#fff8eb", border: "1px solid #ead8b5", padding: "10px 14px", borderRadius: "6px", color: "#84725a", fontWeight: "500" }}>
+                    Only the recorded owner ({resolveName(selectedLand.owner)}) can submit a mutation request for this land.
+                  </div>
+                )}
+
+                {selectedLand?.status === 0 && session?.user?.role !== "officer" && session?.user?.role !== "admin" && isRecordedOwner && (
+                  <button type="button" disabled={busyAction !== null || !form.landId} onClick={() => submit("request")} style={{ background: "#991b1b", color: "#fff", padding: "12px 20px", fontWeight: "700", borderRadius: "8px" }}>
+                    {busyAction === "request" ? "Submitting request..." : "1. Submit Mutation Request (Owner)"}
+                  </button>
+                )}
+
+                {selectedLand?.status === 1 && (session?.user?.role === "officer" || session?.user?.role === "admin") && (
+                  <button type="button" disabled={busyAction !== null || !selectedLand} onClick={() => submit("approve")} style={{ background: "#701a75", color: "#fff", padding: "12px 20px", fontWeight: "700", borderRadius: "8px" }}>
+                    {busyAction === "approve" ? "Approving..." : "2. Verify & Approve Mutation (Revenue Officer)"}
+                  </button>
+                )}
+
+                {selectedLand?.status === 1 && session?.user?.role !== "officer" && session?.user?.role !== "admin" && (
+                  <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", padding: "10px 14px", borderRadius: "6px", color: "#92400e", fontWeight: "500" }}>
+                    Revenue Verification Pending: The mutation request has been submitted to the Revenue Officer desk for verification.
+                  </div>
+                )}
+
+                {selectedLand?.status === 2 && session?.user?.role !== "officer" && session?.user?.role !== "admin" && isPendingPurchaser && (
+                  <button type="button" disabled={busyAction !== null || !selectedLand} onClick={() => submit("transfer")} style={{ background: "#15803d", color: "#fff", padding: "12px 20px", fontWeight: "700", borderRadius: "8px" }}>
+                    {busyAction === "transfer" ? "Completing..." : "3. Complete Mutation & Finalize Ownership (Purchaser)"}
+                  </button>
+                )}
+
+                {selectedLand?.status === 2 && session?.user?.role !== "officer" && session?.user?.role !== "admin" && !isPendingPurchaser && (
+                  <div style={{ background: "#fff8eb", border: "1px solid #ead8b5", padding: "10px 14px", borderRadius: "6px", color: "#84725a", fontWeight: "500" }}>
+                    Only the nominated purchaser ({resolveName(selectedLand.pendingOwner)}) can finalize this mutation.
+                  </div>
+                )}
+
+                {isCompletedTransfer && (
+                  <div style={{ width: "100%", background: "#f0fdf4", border: "2px solid #16a34a", padding: "16px", borderRadius: "10px", color: "#15803d" }}>
+                    <strong style={{ fontSize: "1.1rem" }}>✓ Mutation Workflow 100% Finalized on Blockchain</strong>
+                    <p style={{ margin: "6px 0 0 0", fontSize: "0.95rem" }}>Ownership of Land #{selectedLand.id} is legally finalized under <strong>Sri / Smt. {resolveName(selectedLand.owner)}</strong>. All 3 stages have been completed.</p>
+                  </div>
+                )}
+
+                {selectedLand?.status === 2 && (session?.user?.role === "officer" || session?.user?.role === "admin") && (
+                  <div style={{ background: "#dcfce7", border: "1px solid #22c55e", padding: "10px 14px", borderRadius: "6px", color: "#166534", fontWeight: "500" }}>
+                    Awaiting Purchaser Acceptance: Verified & approved by Revenue Officer. Awaiting final acceptance from nominated purchaser ({resolveName(selectedLand.pendingOwner)}).
+                  </div>
+                )}
+              </div>
+              <p className="hint" style={{ marginTop: "12px" }}>Select a land parcel and registered purchaser, then click <strong>Submit mutation request</strong>. Revenue Officers verify requests and approve mutation requests before purchase finalization.</p>
+            </Card>
+
+            <Card title="Mutation safeguards">
+              <ul className="checklist">
+                <li><span>Revenue role gate</span>Only a revenue registrar can create or verify records.</li>
+                <li><span>State gate</span>Each mutation step is disabled until the prior stage completes.</li>
+                <li><span>Owner consent</span>Only the recorded owner can initiate a mutation request.</li>
+                <li><span>Auditability</span>Every confirmed blockchain transaction is added to the local audit register.</li>
+              </ul>
+            </Card>
+
+            <Card title="Recent blockchain receipts">
+              {liveTransactions.length ? (
+                <div className="receipt-list">
+                  {liveTransactions.map((item) => (
+                    <div key={item.hash}>
+                      <Pill tone="purple">{item.variant}</Pill>
+                      <strong>{item.operation}</strong>
+                      <span>{Number(item.gas).toLocaleString()} gas</span>
+                      <small>Block {item.block} | <a href={`https://amoy.polygonscan.com/tx/${item.hash}`} target="_blank" rel="noreferrer" style={{ color: "#2563eb", textDecoration: "underline" }}>{item.hash.slice(0, 12)}...</a></small>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="empty">Complete a mutation action to show its local transaction receipt here.</p>}
+            </Card>
+          </section>
+        )}
+
+        {view === "documents" && (
+          <section className="page-grid documents">
+            {session.user.role !== "officer" && (
+              <Card title="Submit document reference">
+                <form onSubmit={createDocument}>
+                  <div className="form-grid">
+                    <Field label="Land ID" value={documentForm.landId} onChange={updateDocument("landId")} />
+                    <Field label="Document category" value={documentForm.category} onChange={updateDocument("category")} />
+                    <Field label="Reference number" required value={documentForm.reference} onChange={updateDocument("reference")} placeholder="e.g. TITLE-2026-001" />
+                    <Field label="Optional checksum / hash" value={documentForm.hash} onChange={updateDocument("hash")} placeholder="Off-chain evidence hash" />
+                  </div>
+                  <p className="hint">This prototype records only a document reference and optional integrity hash. It does not upload personal files or place them on-chain.</p>
+                  <button type="submit">Submit for verification</button>
+                </form>
+              </Card>
+            )}
+            <Card title={session.user.role === "officer" ? "Registrar verification queue" : "My document references"} action={<Pill>{portalStats.documents.pending} pending</Pill>}>
+              <div className="document-table">
+                <div className="table-row heading"><span>Land</span><span>Evidence</span><span>Status</span><span>Action</span></div>
+                {documents.map((document) => (
+                  <div className="table-row" key={document.id}>
+                    <span><strong>#{document.landId}</strong><small>{document.category}</small></span>
+                    <span>{document.reference}<small>{document.hash || "No hash provided"}</small></span>
+                    <span><Pill tone={document.status === "Verified" ? "success" : "warning"}>{document.status}</Pill></span>
+                    <span>{document.status === "Pending" && session.user.role === "officer" ? <button className="small-button" disabled={!isRegistrar} onClick={() => verifyDocument(document.id)}>Verify</button> : <small>No action</small>}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </section>
+        )}
+
+        {view === "accounts" && session.user.role === "admin" && (
+          <section className="page-grid documents">
+            <Card title="System User Control & Account Management" action={<div style={{ display: "flex", gap: "8px", alignItems: "center" }}><Pill tone="purple">{allUsers.length} total users</Pill></div>}>
+              <p className="hint">As System Administrator, you can monitor, block/unblock, or permanently delete any user account across Citizens, Farmers, Purchasers, and Revenue Officers.</p>
+
+              <div style={{ display: "flex", gap: "12px", marginBottom: "16px", flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ flex: 1, minWidth: "220px" }}>
+                  <input type="text" placeholder="Search users by name, username, email, or wallet..." value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} style={{ width: "100%", padding: "10px 12px", borderRadius: "8px" }} />
+                </div>
+                <div style={{ display: "flex", gap: "6px" }}>
+                  {["all", "citizen", "farmer", "purchaser", "officer", "admin"].map((r) => (
+                    <button key={r} type="button" className="small-button" style={{ background: userRoleFilter === r ? "#1e3a8a" : "#f1f5f9", color: userRoleFilter === r ? "#ffffff" : "#475569" }} onClick={() => setUserRoleFilter(r)}>{r}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="document-table">
+                <div className="table-row heading" style={{ gridTemplateColumns: "1.2fr 1fr 1fr 0.8fr 1.2fr 1.2fr" }}>
+                  <span>User Details</span>
+                  <span>Username / Email</span>
+                  <span>Mobile</span>
+                  <span>Status</span>
+                  <span>Wallet Address</span>
+                  <span>Actions</span>
+                </div>
+
+                {allUsers.filter((u) => {
+                  if (userRoleFilter !== "all" && u.role !== userRoleFilter) return false;
+                  if (!userSearchQuery.trim()) return true;
+                  const q = userSearchQuery.trim().toLowerCase();
+                  return (
+                    u.fullName?.toLowerCase().includes(q) ||
+                    u.username?.toLowerCase().includes(q) ||
+                    u.email?.toLowerCase().includes(q) ||
+                    u.walletAddress?.toLowerCase().includes(q)
+                  );
+                }).map((userItem) => (
+                  <div className="table-row" key={userItem.id} style={{ gridTemplateColumns: "1.2fr 1fr 1fr 0.8fr 1.2fr 1.2fr", alignItems: "center" }}>
+                    <span>
+                      <strong>{userItem.fullName}</strong>
+                      <div style={{ display: "flex", gap: "4px", marginTop: "2px" }}>
+                        <Pill tone={userItem.role === "admin" ? "purple" : userItem.role === "officer" ? "success" : "neutral"}>{userItem.role}</Pill>
+                      </div>
+                    </span>
+                    <span>
+                      <strong>{userItem.username}</strong>
+                      <small>{userItem.email}</small>
+                    </span>
+                    <span>{userItem.mobile || "N/A"}</span>
+                    <span><Pill tone={userItem.status === "Blocked" ? "danger" : "success"}>{userItem.status || "Active"}</Pill></span>
+                    <span><small style={{ fontFamily: "monospace", fontSize: "0.75rem" }}>{userItem.walletAddress ? `${userItem.walletAddress.slice(0, 8)}...${userItem.walletAddress.slice(-6)}` : "N/A"}</small></span>
+                    <span>
+                      {userItem.role === "admin" || userItem.id === "user-admin" ? (
+                        <small style={{ color: "#94a3b8", fontStyle: "italic" }}>System Protected</small>
+                      ) : (
+                        <div style={{ display: "flex", gap: "6px" }}>
+                          <button type="button" className="small-button" style={{ background: userItem.status === "Blocked" ? "#16a34a" : "#d97706", color: "#ffffff", border: "none" }} onClick={() => toggleUserStatus(userItem.id, userItem.status || "Active", userItem.fullName)}>{userItem.status === "Blocked" ? "Unblock" : "Block"}</button>
+                          <button type="button" className="small-button" style={{ background: "#dc2626", color: "#ffffff", border: "none" }} onClick={() => deleteUser(userItem.id, userItem.fullName)}>Delete</button>
+                        </div>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {allUsers.length === 0 && <p className="empty">No registered user accounts found.</p>}
+            </Card>
+
+            <Card title="Create Revenue Officer Account">
+              <form onSubmit={createOfficer}>
+                <div className="form-grid">
+                  <Field label="Officer full name" required value={officerForm.fullName} onChange={updateOfficer("fullName")} />
+                  <Field label="Username" required value={officerForm.username} onChange={updateOfficer("username")} placeholder="e.g. revenue.kumar" />
+                  <Field label="Official email address" required type="email" value={officerForm.email} onChange={updateOfficer("email")} />
+                  <Field label="Mobile number" required inputMode="numeric" maxLength="10" value={officerForm.mobile} onChange={updateOfficer("mobile")} />
+                </div>
+                <p className="hint">Revenue Officers cannot self-register. Only an authenticated System Administrator can create their accounts. They sign in with CAPTCHA and an email code.</p>
+                <button type="submit">Create officer account</button>
+              </form>
+            </Card>
+          </section>
+        )}
+
+        {view === "audit" && (
+          <section className="page-grid audit">
+            <Card title="Persistent local audit trail" action={<button className="text-button" onClick={loadPortalData}>Refresh</button>}>
+              <div className="timeline">
+                {audit.map((entry) => (
+                  <article key={entry.id}>
+                    <span className="timeline-dot" />
+                    <div>
+                      <strong>{entry.action}</strong>
+                      <p>Land: {entry.landId} | Actor: {entry.actor}</p>
+                      <small>{entry.detail}</small>
+                    </div>
+                    <time>{new Date(entry.createdAt).toLocaleString()}</time>
+                  </article>
+                ))}
+              </div>
+            </Card>
+            <Card title="Project boundary">
+              <p>This local JSON log is deliberately a demonstration persistence layer. A production deployment would use authenticated users, encrypted document storage, a managed database, and a secure audit stream.</p>
+              <div className="posture">
+                <Pill tone="success">Blockchain events</Pill>
+                <Pill>Document references</Pill>
+                <Pill>Benchmark history</Pill>
+                <Pill>Role actions</Pill>
+              </div>
+            </Card>
           </section>
         )}
       </main>
+
+      {certificateLand && <RtcCertificateModal land={certificateLand} contractAddress={address} onClose={() => setCertificateLand(null)} resolveName={resolveName} />}
+      {showEmailChangeModal && (
+        <EmailChangeModal
+          user={session?.user}
+          onClose={() => setShowEmailChangeModal(false)}
+          onSuccess={(updatedUser) => {
+            setSession((prev) => ({ ...prev, user: updatedUser }));
+            setShowEmailChangeModal(false);
+            setMessage(`Email address updated successfully to ${updatedUser.email}.`);
+          }}
+        />
+      )}
     </div>
   );
 }
