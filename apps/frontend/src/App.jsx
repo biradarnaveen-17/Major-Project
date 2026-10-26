@@ -240,12 +240,37 @@ export default function BhoomiApp() {
   }
 
   async function loadSavedBenchmark() {
+    const runId = `saved-${Date.now()}`;
+    const startedAt = new Date().toISOString();
     try {
       setRunningLoadTest(true);
-      setLoadProgress("Loading saved benchmark report...");
       const savedReport = await api("/api/benchmarks/loads");
-      setLoadReport({ ...savedReport, isStored: true });
-      setMessage("Loaded the saved 10, 100, and 500 workload benchmark. No live EVM transactions were sent.");
+      const replayRows = (savedReport.results || [])
+        .filter((row) => row.mode === "sequential")
+        .sort((left, right) => left.load - right.load || (left.contract.includes("Base") ? -1 : 1));
+
+      if (!replayRows.length) throw new Error("The saved report does not contain sequential benchmark results.");
+
+      setLoadReport({ runId, startedAt, generatedAt: savedReport.generatedAt, isStored: true, loads: [], results: [] });
+      setMessage("Replaying saved workload benchmark results...");
+
+      for (let index = 0; index < replayRows.length; index++) {
+        const row = replayRows[index];
+        setLoadProgress(`[${index + 1}/${replayRows.length}] Loading ${row.contract.includes("Base") ? "Base" : "Optimized"} Contract (${row.load} txns)...`);
+        await new Promise((resolve) => setTimeout(resolve, 450));
+        const visibleRows = replayRows.slice(0, index + 1);
+        setLoadReport({
+          runId,
+          startedAt,
+          generatedAt: savedReport.generatedAt,
+          isStored: true,
+          loads: [...new Set(visibleRows.map((item) => item.load))],
+          results: visibleRows
+        });
+      }
+
+      setLoadReport((current) => current ? { ...current, completedAt: new Date().toISOString() } : current);
+      setMessage("Saved workload benchmark replay completed. No live EVM transactions were sent.");
     } catch (error) {
       console.error("Saved benchmark load error:", error);
       setMessage("Could not load the saved benchmark: " + error.message);
@@ -390,14 +415,13 @@ export default function BhoomiApp() {
   }, [session?.token]);
 
   async function loadPortalData() {
-    const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult, loadBenchmarkResult] = await Promise.allSettled([api("/api/dashboard"), api("/api/documents"), api("/api/audit"), api("/api/benchmarks/latest"), api("/api/land-requests"), api("/api/purchasers"), api("/api/benchmarks/loads")]);
+    const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult] = await Promise.allSettled([api("/api/dashboard"), api("/api/documents"), api("/api/audit"), api("/api/benchmarks/latest"), api("/api/land-requests"), api("/api/purchasers")]);
     if (dashboardResult.status === "fulfilled") setPortalStats(dashboardResult.value);
     if (documentResult.status === "fulfilled") setDocuments(documentResult.value);
     if (auditResult.status === "fulfilled") setAudit(auditResult.value);
     if (reportResult.status === "fulfilled") setReport(reportResult.value);
     if (requestResult.status === "fulfilled") setLandRequests(requestResult.value);
     if (purchaserResult.status === "fulfilled") setPurchasers(purchaserResult.value);
-    if (loadBenchmarkResult.status === "fulfilled") setLoadReport({ ...loadBenchmarkResult.value, isStored: true });
   }
 
   async function refreshAppData() {
@@ -2061,7 +2085,7 @@ export default function BhoomiApp() {
 
         {view === "loadtest" && session.user.role === "admin" && (
           <section className="page-grid analytics">
-            <Card title="Workload Benchmark (10, 100, 500 Transactions)" action={<button className="primary" disabled={runningLoadTest} onClick={loadSavedBenchmark}>{runningLoadTest ? "Loading Benchmark..." : "Reload Saved Benchmark"}</button>}>
+            <Card title="Workload Benchmark (10, 100, 500 Transactions)" action={<button className="primary" disabled={runningLoadTest} onClick={loadSavedBenchmark}>{runningLoadTest ? "Loading Benchmark..." : "Replay Saved Benchmark"}</button>}>
               {runningLoadTest && (
                 <div style={{ padding: "14px", background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: "8px", marginBottom: "16px", color: "#1e40af", fontWeight: "600", display: "flex", alignItems: "center", gap: "10px" }}>
                   <span className="signal" style={{ background: "#2563eb", width: "12px", height: "12px" }} />
@@ -2069,7 +2093,7 @@ export default function BhoomiApp() {
                 </div>
               )}
 
-              <p className="hint" style={{ marginBottom: "16px" }}>This page displays the saved comparison for <strong>10, 100, and 500</strong> four-step transfer lifecycles. Reloading it does not send blockchain transactions or block the dashboard.</p>
+              <p className="hint" style={{ marginBottom: "16px" }}>Replay the saved comparison for <strong>10, 100, and 500</strong> four-step transfer lifecycles. Results appear step-by-step without sending blockchain transactions or blocking the dashboard.</p>
 
               {loadReport?.results?.length ? (
                 <>
@@ -2078,7 +2102,7 @@ export default function BhoomiApp() {
                       <div>
                         <h3 style={{ margin: 0, fontSize: "1.1rem", color: "#0f172a" }}>Gas Consumption Histogram (Base vs. Optimized)</h3>
                         <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", color: "#64748b" }}>Vertical column comparison across 10, 100, and 500 property transaction workloads</p>
-                        <small style={{ display: "block", marginTop: "4px", color: "#475569" }}>Saved benchmark snapshot{loadReport.generatedAt ? ` · generated ${new Date(loadReport.generatedAt).toLocaleString()}` : ""}</small>
+                        <small style={{ display: "block", marginTop: "4px", color: "#475569" }}>{loadReport.completedAt ? "Saved benchmark replay completed" : "Replaying saved benchmark"}{loadReport.generatedAt ? ` · source generated ${new Date(loadReport.generatedAt).toLocaleString()}` : ""}</small>
                       </div>
                       <div style={{ display: "flex", gap: "16px", fontSize: "0.85rem" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: "6px" }}><span style={{ width: "12px", height: "12px", background: "#b45309", borderRadius: "3px" }} /> Base Contract</span>
@@ -2155,7 +2179,7 @@ export default function BhoomiApp() {
                   </div>
                 </>
               ) : (
-                <p className="empty">The saved workload report is unavailable. Reload the benchmark after restoring the report file.</p>
+                <p className="empty">Replay the saved workload benchmark to show its results step-by-step.</p>
               )}
             </Card>
           </section>
