@@ -58,6 +58,7 @@ function createRpcProvider(url = RPC_URL) {
 
 export default function BhoomiApp() {
   const [session, setSession] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showEmailChangeModal, setShowEmailChangeModal] = useState(false);
   const [view, setView] = useState("overview");
   const [variant, setVariant] = useState("optimized");
@@ -1391,24 +1392,46 @@ export default function BhoomiApp() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <aside className={`sidebar ${mobileMenuOpen ? "mobile-nav-open" : ""}`}>
         <div className="brand">
-          <span className="brand-mark">ಭೂ</span>
-          <div>
-            <strong>BhoomiChain</strong>
-            <small>{portal.label}</small>
+          <div className="brand-title-wrap">
+            <span className="brand-mark">ಭೂ</span>
+            <div>
+              <strong>BhoomiChain</strong>
+              <small>{portal.label}</small>
+            </div>
           </div>
+          <button
+            type="button"
+            className="mobile-menu-toggle"
+            aria-label="Toggle navigation menu"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+          >
+            {mobileMenuOpen ? "✕" : "☰"}
+          </button>
         </div>
-        <nav>
+        <nav className={`sidebar-nav ${mobileMenuOpen ? "nav-visible" : ""}`}>
           {visibleNav.map(([id, label], index) => (
-            <button key={id} className={view === id ? "nav-item active" : "nav-item"} onClick={() => {
-              setView(id);
-              sessionStorage.setItem("bhoomichain_view", id);
-              window.location.hash = `/${session?.user?.role || "citizen"}/${id}`;
-            }}>
+            <button
+              key={id}
+              className={view === id ? "nav-item active" : "nav-item"}
+              onClick={() => {
+                setView(id);
+                setMobileMenuOpen(false);
+                sessionStorage.setItem("bhoomichain_view", id);
+                window.location.hash = `/${session?.user?.role || "citizen"}/${id}`;
+              }}
+            >
               <span>0{index + 1}</span>{label}
             </button>
           ))}
+          <div className="mobile-drawer-account">
+            <div className="signed-in">
+              <strong>{session.user.fullName}</strong>
+              <small>{session.user.username} | {shortAddress(wallet?.account)}</small>
+            </div>
+            <button className="quiet" onClick={() => { setMobileMenuOpen(false); signOut(); }}>Sign out</button>
+          </div>
         </nav>
         <div className="sidebar-foot">
           <Pill tone="success">Signed in as {session.user.fullName}</Pill>
