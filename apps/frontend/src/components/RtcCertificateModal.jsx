@@ -25,15 +25,22 @@ export default function RtcCertificateModal({ land, contractAddress, onClose, re
   if (!land) return null;
 
   const landIdStr = String(land.id || land.landId || "8888001");
-  const surveyNo = land.survey || "64/1";
-  const revenueLocation = land.location || "Attur, Yelahanka, Bengaluru North, Bengaluru Urban";
+  const cached = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("bhoomi_parcels_meta") || "{}")[landIdStr] || null;
+    } catch {
+      return null;
+    }
+  })();
+  const surveyNo = land.survey || cached?.surveyNumber || "64/1";
   const ownerName = resolveName ? resolveName(land.owner) : (land.ownerName || "Sri / Smt. Khatedar");
 
   const locationParts = (land.location || "").split(",").map(s => s.trim());
-  const village = land.village || locationParts[0] || "Farhabad";
-  const hobli = land.hobli || locationParts[1] || "Farhatabad";
-  const taluk = land.taluk || locationParts[2] || "Kalaburagi Taluk";
-  const district = land.district || locationParts[3] || "Kalaburagi";
+  const village = land.village || cached?.village || locationParts[0] || "Farhabad";
+  const hobli = land.hobli || cached?.hobli || locationParts[1] || "Farhatabad";
+  const taluk = land.taluk || cached?.taluk || locationParts[2] || "Kalaburagi Taluk";
+  const district = land.district || cached?.district || locationParts[3] || "Kalaburagi";
+  const revenueLocation = land.location || `${village}, ${hobli}, ${taluk}, ${district}`;
 
   // Rich Multi-Line Data for QR Code Scanning
   const fullRtcDataString = `BhoomiChain Verified RTC | Land ID: #${landIdStr} | Survey No: ${surveyNo} | Owner: ${ownerName} (${land.owner || ''}) | Location: ${village}, ${hobli}, ${district} | Area: ${land.area || 50} Gunta | Contract: ${contractAddress || '0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e'}`;

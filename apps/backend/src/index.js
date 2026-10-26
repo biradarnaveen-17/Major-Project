@@ -944,11 +944,26 @@ app.get("/api/land-requests", requireAuthenticated, (request, response) => {
   return response.json(farmerId ? ownRequests.filter((item) => item.farmerId === farmerId) : ownRequests);
 });
 
-app.get("/api/land-requests/by-land-id/:landId", requireAuthenticated, (request, response) => {
+app.get("/api/land-requests/by-land-id/:landId", (request, response) => {
   const landIdStr = String(request.params.landId);
   const reqItem = state.landRequests.find((item) => String(item.landId) === landIdStr || String(item.id) === landIdStr);
   if (!reqItem) return response.status(404).json({ message: "Land record metadata not found." });
   return response.json(reqItem);
+});
+
+app.get("/api/land-parcels", (request, response) => {
+  const registered = state.landRequests.filter((item) => item.status === "Registered on blockchain" && item.landId);
+  const parcels = registered.map((r) => ({
+    landId: String(r.landId),
+    surveyNumber: r.surveyNumber,
+    village: r.village,
+    hobli: r.hobli,
+    taluk: r.taluk,
+    district: r.district,
+    extent: r.extent,
+    walletAddress: r.walletAddress
+  }));
+  return response.json(parcels);
 });
 
 app.get("/api/farmers/:id/land-holdings", requireAuthenticated, (request, response) => {
@@ -1074,21 +1089,16 @@ app.patch("/api/land-requests/transfer-owner/:landId", requireCitizen, (request,
     landRequest.farmerId = request.authUser.id;
     landRequest.email = request.authUser.email;
     landRequest.mobile = request.authUser.mobile || landRequest.mobile;
-    // Preserve existing location details from previous registration; do not overwrite with defaults
-    if (surveyNumber && surveyNumber !== "12/3A") landRequest.surveyNumber = surveyNumber;
-    if (village && village !== "Jakkur") landRequest.village = village;
-    if (hobli && hobli !== "Yelahanka") landRequest.hobli = hobli;
-    if (taluk && taluk !== "Bengaluru North") landRequest.taluk = taluk;
-    if (district && district !== "Bengaluru Urban") landRequest.district = district;
-    if (extent && extent !== "48") landRequest.extent = extent;
+    // Physical geography never changes on ownership transfer.
+    // Only set if field was previously empty, and never overwrite with empty or defaults.
+    if (!landRequest.surveyNumber && surveyNumber) landRequest.surveyNumber = surveyNumber;
+    if (!landRequest.village && village) landRequest.village = village;
+    if (!landRequest.hobli && hobli) landRequest.hobli = hobli;
+    if (!landRequest.taluk && taluk) landRequest.taluk = taluk;
+    if (!landRequest.district && district) landRequest.district = district;
+    if (!landRequest.extent && extent) landRequest.extent = extent;
   } else {
     const matchUser = request.authUser;
-    const finalSurvey = surveyNumber || "12/3A";
-    const finalVillage = village || "Jakkur";
-    const finalHobli = hobli || "Yelahanka";
-    const finalTaluk = taluk || "Bengaluru North";
-    const finalDistrict = district || "Bengaluru Urban";
-    const finalExtent = extent || "48";
     landRequest = {
       id: crypto.randomUUID(),
       landId: landIdStr,
@@ -1097,13 +1107,13 @@ app.patch("/api/land-requests/transfer-owner/:landId", requireCitizen, (request,
       email: matchUser ? matchUser.email : "",
       mobile: matchUser ? matchUser.mobile : "",
       walletAddress: expectedWallet,
-      surveyNumber: finalSurvey,
-      district: finalDistrict,
-      taluk: finalTaluk,
-      hobli: finalHobli,
-      village: finalVillage,
-      extent: finalExtent,
-      parcelKey: `${finalSurvey}|${finalVillage}`,
+      surveyNumber: surveyNumber || "Survey Parcel",
+      district: district || "",
+      taluk: taluk || "",
+      hobli: hobli || "",
+      village: village || "",
+      extent: extent || "50",
+      parcelKey: `${surveyNumber || 'parcel'}|${village || 'location'}`,
       status: "Registered on blockchain",
       createdAt: new Date().toISOString(),
       verifiedAt: new Date().toISOString(),

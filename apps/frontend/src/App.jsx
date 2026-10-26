@@ -22,6 +22,28 @@ import LoginScreen from "./components/LoginScreen.jsx";
 import RtcCertificateModal from "./components/RtcCertificateModal.jsx";
 import EmailChangeModal from "./components/EmailChangeModal.jsx";
 
+function getCachedParcelMeta(landId) {
+  if (!landId) return null;
+  try {
+    const cache = JSON.parse(localStorage.getItem("bhoomi_parcels_meta") || "{}");
+    return cache[String(landId)] || null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedParcelMeta(landId, meta) {
+  if (!landId || !meta) return;
+  try {
+    const cache = JSON.parse(localStorage.getItem("bhoomi_parcels_meta") || "{}");
+    cache[String(landId)] = {
+      ...(cache[String(landId)] || {}),
+      ...meta
+    };
+    localStorage.setItem("bhoomi_parcels_meta", JSON.stringify(cache));
+  } catch {}
+}
+
 export default function BhoomiApp() {
   const [session, setSession] = useState(null);
   const [showEmailChangeModal, setShowEmailChangeModal] = useState(false);
@@ -49,7 +71,7 @@ export default function BhoomiApp() {
   const [officerForm, setOfficerForm] = useState({ fullName: "", username: "", email: "", mobile: "" });
   const [pendingRequestId, setPendingRequestId] = useState(null);
   const [documentForm, setDocumentForm] = useState({ landId: "", category: "RTC / Pahani extract", reference: "", hash: "" });
-  const [form, setForm] = useState({ landId: DEFAULT_DEMO_LAND_ID, owner: "", survey: "12/3A", district: "Bengaluru Urban", taluk: "Bengaluru North", hobli: "Yelahanka", village: "Jakkur", area: "48", lookupId: DEFAULT_DEMO_LAND_ID, buyer: "" });
+  const [form, setForm] = useState({ landId: DEFAULT_DEMO_LAND_ID, owner: "", survey: "", district: "", taluk: "", hobli: "", village: "", area: "50", lookupId: DEFAULT_DEMO_LAND_ID, buyer: "" });
   const [purchasers, setPurchasers] = useState([]);
   const [purchaserQuery, setPurchaserQuery] = useState("");
   const [loadReport, setLoadReport] = useState(null);
@@ -286,15 +308,20 @@ export default function BhoomiApp() {
     if (land && land.owner?.toLowerCase() === currentAccount) {
       if (!list.some((item) => String(item.landId) === String(land.id))) {
         const existingReq = (landRequests || []).find((r) => String(r.landId) === String(land.id));
+        const cached = getCachedParcelMeta(land.id);
         const locParts = (land.location || "").split(",").map((s) => s.trim());
+        const village = land.village || existingReq?.village || cached?.village || locParts[0] || "";
+        const hobli = land.hobli || existingReq?.hobli || cached?.hobli || locParts[1] || "";
+        const taluk = land.taluk || existingReq?.taluk || cached?.taluk || locParts[2] || "";
+        const district = land.district || existingReq?.district || cached?.district || locParts[3] || "";
         list.unshift({
           id: `chain-${land.id}`,
-          surveyNumber: land.survey || existingReq?.surveyNumber || "12/3A",
-          extent: land.area || existingReq?.extent || "48",
-          village: land.village || existingReq?.village || locParts[0] || "Jakkur",
-          hobli: land.hobli || existingReq?.hobli || locParts[1] || "Yelahanka",
-          taluk: land.taluk || existingReq?.taluk || locParts[2] || "Bengaluru North",
-          district: land.district || existingReq?.district || locParts[3] || "Bengaluru Urban",
+          surveyNumber: land.survey || existingReq?.surveyNumber || cached?.surveyNumber || "Survey Parcel",
+          extent: land.area || existingReq?.extent || cached?.extent || "50",
+          village,
+          hobli,
+          taluk,
+          district,
           status: "Registered on blockchain",
           landId: String(land.id),
           walletAddress: land.owner
@@ -311,14 +338,19 @@ export default function BhoomiApp() {
       const targetIdStr = String(target.id);
       if (!list.some((item) => String(item.landId || item.id.replace("chain-", "")) === targetIdStr)) {
         const existingReq = (landRequests || []).find((r) => String(r.landId) === targetIdStr);
+        const cached = getCachedParcelMeta(targetIdStr);
         const locParts = (target.location || "").split(",").map((s) => s.trim());
+        const village = target.village || existingReq?.village || cached?.village || locParts[0] || "";
+        const hobli = target.hobli || existingReq?.hobli || cached?.hobli || locParts[1] || "";
+        const taluk = target.taluk || existingReq?.taluk || cached?.taluk || locParts[2] || "";
+        const district = target.district || existingReq?.district || cached?.district || locParts[3] || "";
         list.unshift({
           id: `selected-${targetIdStr}`,
-          surveyNumber: target.survey || existingReq?.surveyNumber || "12/3A",
-          village: target.village || existingReq?.village || locParts[0] || "Jakkur",
-          hobli: target.hobli || existingReq?.hobli || locParts[1] || "Yelahanka",
-          taluk: target.taluk || existingReq?.taluk || locParts[2] || "Bengaluru North",
-          district: target.district || existingReq?.district || locParts[3] || "Bengaluru Urban",
+          surveyNumber: target.survey || existingReq?.surveyNumber || cached?.surveyNumber || "Survey Parcel",
+          village,
+          hobli,
+          taluk,
+          district,
           landId: targetIdStr,
           isPendingIncoming: Number(target.status) > 0
         });
@@ -379,12 +411,48 @@ export default function BhoomiApp() {
   }, [session?.token]);
 
   async function loadPortalData() {
-    const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult] = await Promise.allSettled([api("/api/dashboard"), api("/api/documents"), api("/api/audit"), api("/api/benchmarks/latest"), api("/api/land-requests"), api("/api/purchasers")]);
+    const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult, parcelResult] = await Promise.allSettled([
+      api("/api/dashboard"),
+      api("/api/documents"),
+      api("/api/audit"),
+      api("/api/benchmarks/latest"),
+      api("/api/land-requests"),
+      api("/api/purchasers"),
+      api("/api/land-parcels").catch(() => [])
+    ]);
     if (dashboardResult.status === "fulfilled") setPortalStats(dashboardResult.value);
     if (documentResult.status === "fulfilled") setDocuments(documentResult.value);
     if (auditResult.status === "fulfilled") setAudit(auditResult.value);
     if (reportResult.status === "fulfilled") setReport(reportResult.value);
-    if (requestResult.status === "fulfilled") setLandRequests(requestResult.value);
+    if (requestResult.status === "fulfilled") {
+      setLandRequests(requestResult.value);
+      (requestResult.value || []).forEach((req) => {
+        if (req.landId) {
+          saveCachedParcelMeta(req.landId, {
+            surveyNumber: req.surveyNumber,
+            village: req.village,
+            hobli: req.hobli,
+            taluk: req.taluk,
+            district: req.district,
+            extent: req.extent
+          });
+        }
+      });
+    }
+    if (parcelResult?.status === "fulfilled" && Array.isArray(parcelResult.value)) {
+      parcelResult.value.forEach((p) => {
+        if (p.landId) {
+          saveCachedParcelMeta(p.landId, {
+            surveyNumber: p.surveyNumber,
+            village: p.village,
+            hobli: p.hobli,
+            taluk: p.taluk,
+            district: p.district,
+            extent: p.extent
+          });
+        }
+      });
+    }
     if (purchaserResult.status === "fulfilled") setPurchasers(purchaserResult.value);
   }
 
@@ -843,17 +911,47 @@ export default function BhoomiApp() {
             /* ignore */
           }
         }
-        if (req) {
-          item.survey = req.surveyNumber || item.survey || "12/3A";
-          item.village = req.village;
-          item.hobli = req.hobli;
-          item.taluk = req.taluk;
-          item.district = req.district;
-          item.location = `${req.village}, ${req.hobli}, ${req.taluk}, ${req.district}`;
-          if (!item.area || item.area === "0") item.area = req.extent || "48";
+        const cached = getCachedParcelMeta(landIdInput);
+        const survey = req?.surveyNumber || cached?.surveyNumber || item.survey || "";
+        const village = req?.village || cached?.village || item.village || "";
+        const hobli = req?.hobli || cached?.hobli || item.hobli || "";
+        const taluk = req?.taluk || cached?.taluk || item.taluk || "";
+        const district = req?.district || cached?.district || item.district || "";
+        const area = req?.extent || cached?.extent || item.area || "50";
+
+        if (survey) item.survey = survey;
+        if (village) item.village = village;
+        if (hobli) item.hobli = hobli;
+        if (taluk) item.taluk = taluk;
+        if (district) item.district = district;
+        if (village || district) {
+          item.location = [village, hobli, taluk, district].filter(Boolean).join(", ");
         }
+        if (area && (!item.area || item.area === "0")) item.area = area;
+
+        if (survey || village) {
+          saveCachedParcelMeta(landIdInput, {
+            surveyNumber: survey,
+            village,
+            hobli,
+            taluk,
+            district,
+            extent: area
+          });
+        }
+
         setLand(item);
-        setForm((current) => ({ ...current, landId: String(landIdInput), lookupId: String(landIdInput) }));
+        setForm((current) => ({
+          ...current,
+          landId: String(landIdInput),
+          lookupId: String(landIdInput),
+          ...(survey ? { survey } : {}),
+          ...(village ? { village } : {}),
+          ...(hobli ? { hobli } : {}),
+          ...(taluk ? { taluk } : {}),
+          ...(district ? { district } : {}),
+          ...(area ? { area } : {})
+        }));
         if (!silent) setMessage(`Land record #${landIdInput} loaded from blockchain (${foundVariant === "optimized" ? "Optimized" : "Base"} contract).`);
         return item;
       }
@@ -1082,20 +1180,36 @@ export default function BhoomiApp() {
               existingMeta = await api(`/api/land-requests/by-land-id/${form.landId}`);
             } catch {}
           }
+          const cached = getCachedParcelMeta(form.landId);
           const locParts = (existingMeta?.location || targetLand?.location || "").split(",").map((s) => s.trim());
+          const finalSurvey = existingMeta?.surveyNumber || cached?.surveyNumber || targetLand?.survey || form.survey || "Survey Parcel";
+          const finalVillage = existingMeta?.village || cached?.village || targetLand?.village || locParts[0] || form.village || "";
+          const finalHobli = existingMeta?.hobli || cached?.hobli || targetLand?.hobli || locParts[1] || form.hobli || "";
+          const finalTaluk = existingMeta?.taluk || cached?.taluk || targetLand?.taluk || locParts[2] || form.taluk || "";
+          const finalDistrict = existingMeta?.district || cached?.district || targetLand?.district || locParts[3] || form.district || "";
+          const finalExtent = existingMeta?.extent || cached?.extent || targetLand?.area || form.area || "50";
+
           await api(`/api/land-requests/transfer-owner/${form.landId}`, {
             method: "PATCH",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               newOwnerWallet,
               newOwnerName,
-              surveyNumber: existingMeta?.surveyNumber || targetLand?.survey || form.survey || "12/3A",
-              village: existingMeta?.village || targetLand?.village || locParts[0] || form.village,
-              hobli: existingMeta?.hobli || targetLand?.hobli || locParts[1] || form.hobli,
-              taluk: existingMeta?.taluk || targetLand?.taluk || locParts[2] || form.taluk,
-              district: existingMeta?.district || targetLand?.district || locParts[3] || form.district,
-              extent: existingMeta?.extent || targetLand?.area || form.area || "48"
+              surveyNumber: finalSurvey,
+              village: finalVillage,
+              hobli: finalHobli,
+              taluk: finalTaluk,
+              district: finalDistrict,
+              extent: finalExtent
             })
+          });
+          saveCachedParcelMeta(form.landId, {
+            surveyNumber: finalSurvey,
+            village: finalVillage,
+            hobli: finalHobli,
+            taluk: finalTaluk,
+            district: finalDistrict,
+            extent: finalExtent
           });
           const savedOwned = JSON.parse(localStorage.getItem("bhoomi_transferred_lands") || "[]");
           if (!savedOwned.includes(String(form.landId))) {
@@ -1106,6 +1220,16 @@ export default function BhoomiApp() {
         } catch (e) {
           console.warn("Transfer owner sync skipped:", e.message);
         }
+      }
+      if (action === "register") {
+        saveCachedParcelMeta(form.landId, {
+          surveyNumber: form.survey,
+          village: form.village,
+          hobli: form.hobli,
+          taluk: form.taluk,
+          district: form.district,
+          extent: form.area
+        });
       }
       if (action === "register" && pendingRequestId) {
         try {
@@ -1472,7 +1596,26 @@ export default function BhoomiApp() {
                           <button className="small-button" onClick={async (e) => {
                             e.preventDefault();
                             const found = await findLand(request.landId).catch(() => null);
-                            setCertificateLand({ id: String(request.landId), survey: request.surveyNumber, location: `${request.village}, ${request.hobli}, ${request.taluk}, ${request.district}`, area: request.extent, owner: request.walletAddress || wallet?.account, status: 0, history: [request.walletAddress || wallet?.account] });
+                            const cached = getCachedParcelMeta(request.landId);
+                            const survey = request.surveyNumber || found?.survey || cached?.surveyNumber || "Survey Parcel";
+                            const village = request.village || found?.village || cached?.village || "";
+                            const hobli = request.hobli || found?.hobli || cached?.hobli || "";
+                            const taluk = request.taluk || found?.taluk || cached?.taluk || "";
+                            const district = request.district || found?.district || cached?.district || "";
+                            const area = request.extent || found?.area || cached?.extent || "50";
+                            setCertificateLand({
+                              id: String(request.landId),
+                              survey,
+                              village,
+                              hobli,
+                              taluk,
+                              district,
+                              location: [village, hobli, taluk, district].filter(Boolean).join(", "),
+                              area,
+                              owner: found?.owner || request.walletAddress || wallet?.account,
+                              status: 0,
+                              history: found?.history || [request.walletAddress || wallet?.account]
+                            });
                           }}>View Certificate</button>
                         </div>
                       ) : request.status === "Verified" ? (
@@ -1542,7 +1685,26 @@ export default function BhoomiApp() {
                           <button className="small-button" onClick={async (e) => {
                             e.preventDefault();
                             const found = await findLand(request.landId).catch(() => null);
-                            setCertificateLand({ id: String(request.landId), survey: request.surveyNumber, location: `${request.village}, ${request.hobli}, ${request.taluk}, ${request.district}`, area: request.extent, owner: request.walletAddress || wallet?.account, status: 0, history: [request.walletAddress || wallet?.account] });
+                            const cached = getCachedParcelMeta(request.landId);
+                            const survey = request.surveyNumber || found?.survey || cached?.surveyNumber || "Survey Parcel";
+                            const village = request.village || found?.village || cached?.village || "";
+                            const hobli = request.hobli || found?.hobli || cached?.hobli || "";
+                            const taluk = request.taluk || found?.taluk || cached?.taluk || "";
+                            const district = request.district || found?.district || cached?.district || "";
+                            const area = request.extent || found?.area || cached?.extent || "50";
+                            setCertificateLand({
+                              id: String(request.landId),
+                              survey,
+                              village,
+                              hobli,
+                              taluk,
+                              district,
+                              location: [village, hobli, taluk, district].filter(Boolean).join(", "),
+                              area,
+                              owner: found?.owner || request.walletAddress || wallet?.account,
+                              status: 0,
+                              history: found?.history || [request.walletAddress || wallet?.account]
+                            });
                           }}>Issue RTC</button>
                         </div>
                       )}
