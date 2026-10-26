@@ -1019,49 +1019,43 @@ app.patch("/api/land-requests/:id/registered", requireOfficer, async (request, r
 });
 
 app.patch("/api/land-requests/transfer-owner/:landId", requireCitizen, (request, response) => {
-  const { newOwnerWallet, surveyNumber, village, hobli, taluk, district, extent } = request.body || {};
+  const { newOwnerWallet } = request.body || {};
   const expectedWallet = getWalletForUser(request.authUser);
   if (String(newOwnerWallet || "").toLowerCase() !== expectedWallet.toLowerCase()) {
     return response.status(403).json({ message: "A transfer record can only be created for the signed-in purchaser." });
   }
-  const landIdStr = String(request.params.landId);
-  let landRequest = state.landRequests.find((item) => String(item.landId) === landIdStr);
-  
-  if (landRequest) {
-    landRequest.walletAddress = expectedWallet;
-    landRequest.farmerName = request.authUser.fullName;
-  } else {
-    const matchUser = request.authUser;
-    const finalSurvey = surveyNumber || "12/3A";
-    const finalVillage = village || "Jakkur";
-    const finalHobli = hobli || "Yelahanka";
-    const finalTaluk = taluk || "Bengaluru North";
-    const finalDistrict = district || "Bengaluru Urban";
-    const finalExtent = extent || "48";
-    landRequest = {
-      id: crypto.randomUUID(),
-      landId: landIdStr,
-      farmerId: matchUser ? matchUser.id : "user-transferred",
-      farmerName: matchUser.fullName,
-      email: matchUser ? matchUser.email : "",
-      mobile: matchUser ? matchUser.mobile : "",
-      walletAddress: expectedWallet,
-      surveyNumber: finalSurvey,
-      district: finalDistrict,
-      taluk: finalTaluk,
-      hobli: finalHobli,
-      village: finalVillage,
-      extent: finalExtent,
-      parcelKey: `${finalSurvey}|${finalVillage}`,
-      status: "Registered on blockchain",
-      createdAt: new Date().toISOString(),
-      verifiedAt: new Date().toISOString(),
-      registeredAt: new Date().toISOString(),
-      transactionHash: "on-chain-transfer"
-    };
-    state.landRequests.unshift(landRequest);
+
+  const landIdStr = String(request.params.landId).trim();
+  if (!/^\d+$/.test(landIdStr)) {
+    return response.status(400).json({ message: "A valid numeric blockchain Land ID is required." });
   }
-  addAudit({ action: "Ownership mutation transferred", landId: landIdStr, actor: request.authUser.fullName, detail: `New Khatedar: ${request.authUser.fullName} (${expectedWallet})` });
+
+  // Only update ownership on the existing registered record. Never fabricate
+  // survey/location metadata when the original Land ID cannot be reconciled.
+  const landRequest = state.landRequests.find(
+    (item) => String(item.landId || "").trim() === landIdStr
+      && item.status === "Registered on blockchain"
+  );
+  if (!landRequest) {
+    return response.status(404).json({
+      message: `Registered land record #${landIdStr} was not found in the registry metadata. No land details were changed.`
+    });
+  }
+
+  // Survey number, village, hobli, taluk, district, extent and parcelKey are
+  // immutable parcel metadata; an ownership transfer must not overwrite them.
+  landRequest.walletAddress = expectedWallet;
+  landRequest.farmerName = request.authUser.fullName;
+  landRequest.farmerId = request.authUser.id;
+  landRequest.email = request.authUser.email;
+  landRequest.mobile = request.authUser.mobile;
+
+  addAudit({
+    action: "Ownership mutation transferred",
+    landId: landIdStr,
+    actor: request.authUser.fullName,
+    detail: `New Khatedar: ${request.authUser.fullName} (${expectedWallet}); original parcel metadata preserved`
+  });
   saveState();
   return response.json(landRequest);
 });
