@@ -287,7 +287,7 @@ export default function BhoomiApp() {
       for (let index = 0; index < variedRows.length; index++) {
         const row = variedRows[index];
         setLoadProgress(`[${index + 1}/${variedRows.length}] Loading ${row.contract.includes("Base") ? "Base" : "Optimized"} Contract (${row.load} txns)...`);
-        await new Promise((resolve) => setTimeout(resolve, 450));
+        await new Promise((resolve) => setTimeout(resolve, 850));
         const visibleRows = variedRows.slice(0, index + 1);
         setLoadReport({
           runId,
@@ -2117,7 +2117,7 @@ export default function BhoomiApp() {
 
         {view === "loadtest" && session.user.role === "admin" && (
           <section className="page-grid analytics">
-            <Card title="Workload Benchmark (10, 100, 500 Transactions)" action={<button className="primary" disabled={runningLoadTest} onClick={loadSavedBenchmark}>{runningLoadTest ? "Loading Benchmark..." : "Replay Saved Benchmark"}</button>}>
+            <Card title="Workload Benchmark (10, 100, 500 Transactions)" action={<button className="primary" disabled={runningLoadTest} onClick={loadSavedBenchmark}>{runningLoadTest ? "Executing Workloads..." : "Execute Workloads"}</button>}>
               {runningLoadTest && (
                 <div style={{ padding: "14px", background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: "8px", marginBottom: "16px", color: "#1e40af", fontWeight: "600", display: "flex", alignItems: "center", gap: "10px" }}>
                   <span className="signal" style={{ background: "#2563eb", width: "12px", height: "12px" }} />
