@@ -44,6 +44,18 @@ function saveCachedParcelMeta(landId, meta) {
   } catch {}
 }
 
+function createRpcProvider(url = RPC_URL) {
+  const req = new ethers.FetchRequest(url);
+  req.retryFunc = async (_request, response, attempt) => {
+    if (attempt < 4 && (!response || [502, 503, 504].includes(response.statusCode))) {
+      await new Promise((r) => setTimeout(r, 600 * attempt));
+      return true;
+    }
+    return false;
+  };
+  return new ethers.JsonRpcProvider(req, 31337, { staticNetwork: true });
+}
+
 export default function BhoomiApp() {
   const [session, setSession] = useState(null);
   const [showEmailChangeModal, setShowEmailChangeModal] = useState(false);
@@ -88,7 +100,7 @@ export default function BhoomiApp() {
       setLoadProgress("Connecting to local EVM blockchain...");
       setMessage("Starting real-time EVM workload benchmark...");
 
-      const rpcProvider = new ethers.JsonRpcProvider(RPC_URL);
+      const rpcProvider = createRpcProvider(RPC_URL);
       const authorityWallet = new ethers.Wallet("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", rpcProvider);
       const buyerWallet = new ethers.Wallet("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d", rpcProvider);
 
@@ -261,7 +273,7 @@ export default function BhoomiApp() {
     }
   }
 
-  const provider = useMemo(() => wallet?.provider || new ethers.JsonRpcProvider(RPC_URL), [wallet]);
+  const provider = useMemo(() => wallet?.provider || createRpcProvider(RPC_URL), [wallet]);
   const gasRows = report?.comparison || report?.rows || [];
   const lifecycleRows = gasRows.filter((row) => !["deployment", "getLandDetails"].includes(row.operation));
   const totalBaseLifecycleGas = lifecycleRows.reduce((sum, row) => sum + (row.baseGas || 0), 0);
@@ -578,12 +590,12 @@ export default function BhoomiApp() {
 
   async function useDemoAccount(role, user) {
     try {
-      let localProvider = new ethers.JsonRpcProvider(RPC_URL);
+      let localProvider = createRpcProvider(RPC_URL);
       let network;
       try {
         network = await localProvider.getNetwork();
       } catch {
-        localProvider = new ethers.JsonRpcProvider(RPC_URL);
+        localProvider = createRpcProvider(RPC_URL);
         network = await localProvider.getNetwork();
       }
       const chainId = Number(network?.chainId || 31337);
@@ -748,12 +760,12 @@ export default function BhoomiApp() {
     let active = true;
     const refresh = async () => {
       try {
-        const localProvider = new ethers.JsonRpcProvider(RPC_URL);
+        const localProvider = createRpcProvider(RPC_URL);
         const [block, feeData] = await Promise.all([localProvider.getBlockNumber(), localProvider.getFeeData()]);
         if (active) setChainStats({ block, gasPrice: feeData.gasPrice || 0n });
       } catch {
         try {
-          const fallbackProvider = new ethers.JsonRpcProvider(RPC_URL);
+          const fallbackProvider = createRpcProvider(RPC_URL);
           const [block, feeData] = await Promise.all([fallbackProvider.getBlockNumber(), fallbackProvider.getFeeData()]);
           if (active) setChainStats({ block, gasPrice: feeData.gasPrice || 0n });
         } catch {
@@ -789,7 +801,7 @@ export default function BhoomiApp() {
     }
   }, [view]);
 
-  const defaultProvider = useMemo(() => wallet?.provider || new ethers.JsonRpcProvider(RPC_URL), [wallet]);
+  const defaultProvider = useMemo(() => wallet?.provider || createRpcProvider(RPC_URL), [wallet]);
 
   function contract(withSigner = false, customSigner = null) {
     if (!ethers.isAddress(address)) throw new Error("Enter a valid deployed contract address.");

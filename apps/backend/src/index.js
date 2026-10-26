@@ -381,12 +381,21 @@ app.post("/rpc", async (request, response, next) => {
   }
 
   try {
-    const upstream = await fetch(rpcUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(request.body),
-      signal: AbortSignal.timeout(10_000)
-    });
+    let upstream;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        upstream = await fetch(rpcUrl, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(request.body),
+          signal: AbortSignal.timeout(10_000)
+        });
+        break;
+      } catch (err) {
+        if (attempt === 2) throw err;
+        await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+      }
+    }
     const payload = await upstream.text();
     return response.status(upstream.status).type("application/json").send(payload);
   } catch (error) {
@@ -1180,6 +1189,10 @@ app.use((error, _request, response, _next) => {
   response.status(500).json({ message: "Unexpected server error" });
 });
 
-if (require.main === module) app.listen(port, () => console.log(`Land registration API listening on http://localhost:${port}`));
+if (require.main === module) {
+  const server = app.listen(port, () => console.log(`Land registration API listening on http://localhost:${port}`));
+  server.keepAliveTimeout = 65000;
+  server.headersTimeout = 66000;
+}
 
 module.exports = { app };
