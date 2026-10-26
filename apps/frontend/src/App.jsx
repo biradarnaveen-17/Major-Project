@@ -22,6 +22,20 @@ import LoginScreen from "./components/LoginScreen.jsx";
 import RtcCertificateModal from "./components/RtcCertificateModal.jsx";
 import EmailChangeModal from "./components/EmailChangeModal.jsx";
 
+// Basis-point offsets for a visual replay only; these are not fresh on-chain measurements.
+const BENCHMARK_REPLAY_VARIATIONS = Object.freeze([
+  { baseBps: -36, optimizedBps: 18 }, { baseBps: 22, optimizedBps: -31 },
+  { baseBps: 41, optimizedBps: 27 }, { baseBps: -18, optimizedBps: 36 },
+  { baseBps: 29, optimizedBps: -12 }, { baseBps: -43, optimizedBps: 24 },
+  { baseBps: 15, optimizedBps: 44 }, { baseBps: 38, optimizedBps: -26 },
+  { baseBps: -27, optimizedBps: -38 }, { baseBps: 47, optimizedBps: 11 },
+  { baseBps: -11, optimizedBps: 42 }, { baseBps: 33, optimizedBps: -19 },
+  { baseBps: -48, optimizedBps: 7 }, { baseBps: 19, optimizedBps: 32 },
+  { baseBps: 8, optimizedBps: -45 }, { baseBps: -24, optimizedBps: 29 },
+  { baseBps: 45, optimizedBps: -6 }, { baseBps: -32, optimizedBps: -17 },
+  { baseBps: 26, optimizedBps: 39 }, { baseBps: -5, optimizedBps: -34 }
+]);
+
 export default function BhoomiApp() {
   const [session, setSession] = useState(null);
   const [showEmailChangeModal, setShowEmailChangeModal] = useState(false);
@@ -55,6 +69,7 @@ export default function BhoomiApp() {
   const [loadReport, setLoadReport] = useState(null);
   const [runningLoadTest, setRunningLoadTest] = useState(false);
   const [loadProgress, setLoadProgress] = useState("");
+  const [benchmarkReplayIndex, setBenchmarkReplayIndex] = useState(0);
 
   async function runLoadTest(targetLoads = [10, 100, 500]) {
     const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -245,32 +260,49 @@ export default function BhoomiApp() {
     try {
       setRunningLoadTest(true);
       const savedReport = await api("/api/benchmarks/loads");
+      const variationIndex = benchmarkReplayIndex % BENCHMARK_REPLAY_VARIATIONS.length;
+      const variation = BENCHMARK_REPLAY_VARIATIONS[variationIndex];
+      setBenchmarkReplayIndex((current) => current + 1);
       const replayRows = (savedReport.results || [])
         .filter((row) => row.mode === "sequential")
         .sort((left, right) => left.load - right.load || (left.contract.includes("Base") ? -1 : 1));
 
       if (!replayRows.length) throw new Error("The saved report does not contain sequential benchmark results.");
 
-      setLoadReport({ runId, startedAt, generatedAt: savedReport.generatedAt, isStored: true, loads: [], results: [] });
-      setMessage("Replaying saved workload benchmark results...");
+      const variedRows = replayRows.map((row) => {
+        const offset = row.contract.includes("Base") ? variation.baseBps : variation.optimizedBps;
+        const gasPerLifecycle = Math.round(Number(row.gasPerLifecycle) * (1 + offset / 10000));
+        return {
+          ...row,
+          gasPerLifecycle,
+          totalGas: gasPerLifecycle * Number(row.load),
+          simulated: true,
+          variationIndex: variationIndex + 1
+        };
+      });
 
-      for (let index = 0; index < replayRows.length; index++) {
-        const row = replayRows[index];
-        setLoadProgress(`[${index + 1}/${replayRows.length}] Loading ${row.contract.includes("Base") ? "Base" : "Optimized"} Contract (${row.load} txns)...`);
+      setLoadReport({ runId, startedAt, generatedAt: savedReport.generatedAt, isStored: true, simulated: true, variationIndex: variationIndex + 1, loads: [], results: [] });
+      setMessage(`Replaying saved workload benchmark variation ${variationIndex + 1} of ${BENCHMARK_REPLAY_VARIATIONS.length}...`);
+
+      for (let index = 0; index < variedRows.length; index++) {
+        const row = variedRows[index];
+        setLoadProgress(`[${index + 1}/${variedRows.length}] Loading ${row.contract.includes("Base") ? "Base" : "Optimized"} Contract (${row.load} txns)...`);
         await new Promise((resolve) => setTimeout(resolve, 450));
-        const visibleRows = replayRows.slice(0, index + 1);
+        const visibleRows = variedRows.slice(0, index + 1);
         setLoadReport({
           runId,
           startedAt,
           generatedAt: savedReport.generatedAt,
           isStored: true,
+          simulated: true,
+          variationIndex: variationIndex + 1,
           loads: [...new Set(visibleRows.map((item) => item.load))],
           results: visibleRows
         });
       }
 
       setLoadReport((current) => current ? { ...current, completedAt: new Date().toISOString() } : current);
-      setMessage("Saved workload benchmark replay completed. No live EVM transactions were sent.");
+      setMessage(`Saved workload benchmark variation ${variationIndex + 1} completed. No live EVM transactions were sent.`);
     } catch (error) {
       console.error("Saved benchmark load error:", error);
       setMessage("Could not load the saved benchmark: " + error.message);
@@ -2102,7 +2134,7 @@ export default function BhoomiApp() {
                       <div>
                         <h3 style={{ margin: 0, fontSize: "1.1rem", color: "#0f172a" }}>Gas Consumption Histogram (Base vs. Optimized)</h3>
                         <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", color: "#64748b" }}>Vertical column comparison across 10, 100, and 500 property transaction workloads</p>
-                        <small style={{ display: "block", marginTop: "4px", color: "#475569" }}>{loadReport.completedAt ? "Saved benchmark replay completed" : "Replaying saved benchmark"}{loadReport.generatedAt ? ` · source generated ${new Date(loadReport.generatedAt).toLocaleString()}` : ""}</small>
+                        <small style={{ display: "block", marginTop: "4px", color: "#475569" }}>{loadReport.completedAt ? "Saved benchmark replay completed" : "Replaying saved benchmark"}{loadReport.simulated ? ` · simulated variation ${loadReport.variationIndex}/${BENCHMARK_REPLAY_VARIATIONS.length}` : ""}{loadReport.generatedAt ? ` · source generated ${new Date(loadReport.generatedAt).toLocaleString()}` : ""}</small>
                       </div>
                       <div style={{ display: "flex", gap: "16px", fontSize: "0.85rem" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: "6px" }}><span style={{ width: "12px", height: "12px", background: "#b45309", borderRadius: "3px" }} /> Base Contract</span>
@@ -2150,7 +2182,7 @@ export default function BhoomiApp() {
                     </div>
                   </div>
 
-                  <p className="hint">These are saved local-EVM benchmark values. Use a separate controlled benchmark run when fresh on-chain measurements are required.</p>
+                  <p className="hint">Each replay uses one of 20 small simulated variations of the saved local-EVM benchmark. These values are for visual demonstration only; use a controlled benchmark run for fresh on-chain measurements.</p>
                   <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.9rem" }}>
                       <thead>
