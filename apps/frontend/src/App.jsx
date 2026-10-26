@@ -286,14 +286,15 @@ export default function BhoomiApp() {
     if (land && land.owner?.toLowerCase() === currentAccount) {
       if (!list.some((item) => String(item.landId) === String(land.id))) {
         const existingReq = (landRequests || []).find((r) => String(r.landId) === String(land.id));
+        const locParts = (land.location || "").split(",").map((s) => s.trim());
         list.unshift({
           id: `chain-${land.id}`,
           surveyNumber: land.survey || existingReq?.surveyNumber || "12/3A",
           extent: land.area || existingReq?.extent || "48",
-          village: land.location ? land.location.split(",")[0] : (existingReq?.village || "Jakkur"),
-          hobli: land.location ? (land.location.split(",")[1] || "") : (existingReq?.hobli || "Yelahanka"),
-          taluk: land.location ? (land.location.split(",")[2] || "") : (existingReq?.taluk || "Bengaluru North"),
-          district: land.location ? (land.location.split(",")[3] || "") : (existingReq?.district || "Bengaluru Urban"),
+          village: land.village || existingReq?.village || locParts[0] || "Jakkur",
+          hobli: land.hobli || existingReq?.hobli || locParts[1] || "Yelahanka",
+          taluk: land.taluk || existingReq?.taluk || locParts[2] || "Bengaluru North",
+          district: land.district || existingReq?.district || locParts[3] || "Bengaluru Urban",
           status: "Registered on blockchain",
           landId: String(land.id),
           walletAddress: land.owner
@@ -310,10 +311,14 @@ export default function BhoomiApp() {
       const targetIdStr = String(target.id);
       if (!list.some((item) => String(item.landId || item.id.replace("chain-", "")) === targetIdStr)) {
         const existingReq = (landRequests || []).find((r) => String(r.landId) === targetIdStr);
+        const locParts = (target.location || "").split(",").map((s) => s.trim());
         list.unshift({
           id: `selected-${targetIdStr}`,
           surveyNumber: target.survey || existingReq?.surveyNumber || "12/3A",
-          village: target.location ? target.location.split(",")[0] : (existingReq?.village || "Jakkur"),
+          village: target.village || existingReq?.village || locParts[0] || "Jakkur",
+          hobli: target.hobli || existingReq?.hobli || locParts[1] || "Yelahanka",
+          taluk: target.taluk || existingReq?.taluk || locParts[2] || "Bengaluru North",
+          district: target.district || existingReq?.district || locParts[3] || "Bengaluru Urban",
           landId: targetIdStr,
           isPendingIncoming: Number(target.status) > 0
         });
@@ -830,6 +835,23 @@ export default function BhoomiApp() {
       const item = parseLandDetails(result, foundVariant);
       if (item) {
         if (foundVariant === "optimized") item.id = String(landIdInput);
+        let req = (landRequests || []).find((r) => String(r.landId) === String(landIdInput) || String(r.id) === String(landIdInput));
+        if (!req) {
+          try {
+            req = await api(`/api/land-requests/by-land-id/${landIdInput}`);
+          } catch {
+            /* ignore */
+          }
+        }
+        if (req) {
+          item.survey = req.surveyNumber || item.survey || "12/3A";
+          item.village = req.village;
+          item.hobli = req.hobli;
+          item.taluk = req.taluk;
+          item.district = req.district;
+          item.location = `${req.village}, ${req.hobli}, ${req.taluk}, ${req.district}`;
+          if (!item.area || item.area === "0") item.area = req.extent || "48";
+        }
         setLand(item);
         setForm((current) => ({ ...current, landId: String(landIdInput), lookupId: String(landIdInput) }));
         if (!silent) setMessage(`Land record #${landIdInput} loaded from blockchain (${foundVariant === "optimized" ? "Optimized" : "Base"} contract).`);
@@ -1054,19 +1076,25 @@ export default function BhoomiApp() {
         try {
           const newOwnerWallet = await transferSigner.getAddress();
           const newOwnerName = (purchasers || []).find((f) => f.walletAddress?.toLowerCase() === newOwnerWallet.toLowerCase())?.fullName || shortAddress(newOwnerWallet);
-          const existingMeta = (landRequests || []).find((r) => String(r.landId) === String(form.landId));
+          let existingMeta = (landRequests || []).find((r) => String(r.landId) === String(form.landId) || String(r.id) === String(form.landId));
+          if (!existingMeta) {
+            try {
+              existingMeta = await api(`/api/land-requests/by-land-id/${form.landId}`);
+            } catch {}
+          }
+          const locParts = (existingMeta?.location || targetLand?.location || "").split(",").map((s) => s.trim());
           await api(`/api/land-requests/transfer-owner/${form.landId}`, {
             method: "PATCH",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               newOwnerWallet,
               newOwnerName,
-              surveyNumber: targetLand?.survey || existingMeta?.surveyNumber || form.survey || "12/3A",
-              village: targetLand?.location ? targetLand.location.split(",")[0] : (existingMeta?.village || form.village || "Jakkur"),
-              hobli: existingMeta?.hobli || form.hobli || "Yelahanka",
-              taluk: existingMeta?.taluk || form.taluk || "Bengaluru North",
-              district: existingMeta?.district || form.district || "Bengaluru Urban",
-              extent: targetLand?.area || existingMeta?.extent || form.area || "48"
+              surveyNumber: existingMeta?.surveyNumber || targetLand?.survey || form.survey || "12/3A",
+              village: existingMeta?.village || targetLand?.village || locParts[0] || form.village,
+              hobli: existingMeta?.hobli || targetLand?.hobli || locParts[1] || form.hobli,
+              taluk: existingMeta?.taluk || targetLand?.taluk || locParts[2] || form.taluk,
+              district: existingMeta?.district || targetLand?.district || locParts[3] || form.district,
+              extent: existingMeta?.extent || targetLand?.area || form.area || "48"
             })
           });
           const savedOwned = JSON.parse(localStorage.getItem("bhoomi_transferred_lands") || "[]");

@@ -921,8 +921,21 @@ app.post("/api/farmers/:id/verify-otp", requireLandApplicant, (request, response
 app.get("/api/land-requests", requireAuthenticated, (request, response) => {
   const farmerId = String(request.query.farmerId || "").trim();
   if (["admin", "officer"].includes(request.authUser.role)) return response.json(farmerId ? state.landRequests.filter((item) => item.farmerId === farmerId) : state.landRequests);
-  const ownRequests = state.landRequests.filter((item) => item.farmerId === request.authUser.id || item.email === request.authUser.email);
+  const expectedWallet = (getWalletForUser(request.authUser) || "").toLowerCase();
+  const ownRequests = state.landRequests.filter((item) => {
+    const isOwnerWallet = expectedWallet && item.walletAddress && item.walletAddress.toLowerCase() === expectedWallet;
+    const isOwnerId = item.farmerId === request.authUser.id;
+    const isOwnerEmail = item.email === request.authUser.email;
+    return isOwnerId || isOwnerEmail || isOwnerWallet;
+  });
   return response.json(farmerId ? ownRequests.filter((item) => item.farmerId === farmerId) : ownRequests);
+});
+
+app.get("/api/land-requests/by-land-id/:landId", requireAuthenticated, (request, response) => {
+  const landIdStr = String(request.params.landId);
+  const reqItem = state.landRequests.find((item) => String(item.landId) === landIdStr || String(item.id) === landIdStr);
+  if (!reqItem) return response.status(404).json({ message: "Land record metadata not found." });
+  return response.json(reqItem);
 });
 
 app.get("/api/farmers/:id/land-holdings", requireAuthenticated, (request, response) => {
@@ -1040,11 +1053,21 @@ app.patch("/api/land-requests/transfer-owner/:landId", requireCitizen, (request,
     return response.status(403).json({ message: "A transfer record can only be created for the signed-in purchaser." });
   }
   const landIdStr = String(request.params.landId);
-  let landRequest = state.landRequests.find((item) => String(item.landId) === landIdStr);
+  let landRequest = state.landRequests.find((item) => String(item.landId) === landIdStr || String(item.id) === landIdStr);
   
   if (landRequest) {
     landRequest.walletAddress = expectedWallet;
     landRequest.farmerName = request.authUser.fullName;
+    landRequest.farmerId = request.authUser.id;
+    landRequest.email = request.authUser.email;
+    landRequest.mobile = request.authUser.mobile || landRequest.mobile;
+    // Preserve existing location details from previous registration; do not overwrite with defaults
+    if (surveyNumber && surveyNumber !== "12/3A") landRequest.surveyNumber = surveyNumber;
+    if (village && village !== "Jakkur") landRequest.village = village;
+    if (hobli && hobli !== "Yelahanka") landRequest.hobli = hobli;
+    if (taluk && taluk !== "Bengaluru North") landRequest.taluk = taluk;
+    if (district && district !== "Bengaluru Urban") landRequest.district = district;
+    if (extent && extent !== "48") landRequest.extent = extent;
   } else {
     const matchUser = request.authUser;
     const finalSurvey = surveyNumber || "12/3A";

@@ -29,11 +29,11 @@ export default function RtcCertificateModal({ land, contractAddress, onClose, re
   const revenueLocation = land.location || "Attur, Yelahanka, Bengaluru North, Bengaluru Urban";
   const ownerName = resolveName ? resolveName(land.owner) : (land.ownerName || "Sri / Smt. Khatedar");
 
-  const locationParts = revenueLocation.split(",").map(s => s.trim());
-  const village = locationParts[0] || "Attur";
-  const hobli = locationParts[1] || "Yelahanka";
-  const taluk = locationParts[2] || "Bengaluru North";
-  const district = locationParts[3] || "Bengaluru Urban";
+  const locationParts = (land.location || "").split(",").map(s => s.trim());
+  const village = land.village || locationParts[0] || "Farhabad";
+  const hobli = land.hobli || locationParts[1] || "Farhatabad";
+  const taluk = land.taluk || locationParts[2] || "Kalaburagi Taluk";
+  const district = land.district || locationParts[3] || "Kalaburagi";
 
   // Rich Multi-Line Data for QR Code Scanning
   const fullRtcDataString = `BhoomiChain Verified RTC | Land ID: #${landIdStr} | Survey No: ${surveyNo} | Owner: ${ownerName} (${land.owner || ''}) | Location: ${village}, ${hobli}, ${district} | Area: ${land.area || 50} Gunta | Contract: ${contractAddress || '0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e'}`;
