@@ -239,6 +239,22 @@ export default function BhoomiApp() {
     }
   }
 
+  async function loadSavedBenchmark() {
+    try {
+      setRunningLoadTest(true);
+      setLoadProgress("Loading saved benchmark report...");
+      const savedReport = await api("/api/benchmarks/loads");
+      setLoadReport({ ...savedReport, isStored: true });
+      setMessage("Loaded the saved 10, 100, and 500 workload benchmark. No live EVM transactions were sent.");
+    } catch (error) {
+      console.error("Saved benchmark load error:", error);
+      setMessage("Could not load the saved benchmark: " + error.message);
+    } finally {
+      setRunningLoadTest(false);
+      setLoadProgress("");
+    }
+  }
+
   const provider = useMemo(() => wallet?.provider || new ethers.JsonRpcProvider(RPC_URL), [wallet]);
   const gasRows = report?.comparison || report?.rows || [];
   const lifecycleRows = gasRows.filter((row) => !["deployment", "getLandDetails"].includes(row.operation));
@@ -374,13 +390,14 @@ export default function BhoomiApp() {
   }, [session?.token]);
 
   async function loadPortalData() {
-    const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult] = await Promise.allSettled([api("/api/dashboard"), api("/api/documents"), api("/api/audit"), api("/api/benchmarks/latest"), api("/api/land-requests"), api("/api/purchasers")]);
+    const [dashboardResult, documentResult, auditResult, reportResult, requestResult, purchaserResult, loadBenchmarkResult] = await Promise.allSettled([api("/api/dashboard"), api("/api/documents"), api("/api/audit"), api("/api/benchmarks/latest"), api("/api/land-requests"), api("/api/purchasers"), api("/api/benchmarks/loads")]);
     if (dashboardResult.status === "fulfilled") setPortalStats(dashboardResult.value);
     if (documentResult.status === "fulfilled") setDocuments(documentResult.value);
     if (auditResult.status === "fulfilled") setAudit(auditResult.value);
     if (reportResult.status === "fulfilled") setReport(reportResult.value);
     if (requestResult.status === "fulfilled") setLandRequests(requestResult.value);
     if (purchaserResult.status === "fulfilled") setPurchasers(purchaserResult.value);
+    if (loadBenchmarkResult.status === "fulfilled") setLoadReport({ ...loadBenchmarkResult.value, isStored: true });
   }
 
   async function refreshAppData() {
@@ -2044,15 +2061,15 @@ export default function BhoomiApp() {
 
         {view === "loadtest" && session.user.role === "admin" && (
           <section className="page-grid analytics">
-            <Card title="Real-Time EVM Workload Benchmark (10, 100, 500 Transactions)" action={<button className="primary" disabled={runningLoadTest} onClick={() => runLoadTest([10, 100, 500])}>{runningLoadTest ? "Executing Real-Time EVM..." : "Execute Real-Time 10, 100, 500 Load Test"}</button>}>
+            <Card title="Workload Benchmark (10, 100, 500 Transactions)" action={<button className="primary" disabled={runningLoadTest} onClick={loadSavedBenchmark}>{runningLoadTest ? "Loading Benchmark..." : "Reload Saved Benchmark"}</button>}>
               {runningLoadTest && (
                 <div style={{ padding: "14px", background: "#eff6ff", border: "1px solid #93c5fd", borderRadius: "8px", marginBottom: "16px", color: "#1e40af", fontWeight: "600", display: "flex", alignItems: "center", gap: "10px" }}>
                   <span className="signal" style={{ background: "#2563eb", width: "12px", height: "12px" }} />
-                  <span>{loadProgress || "Executing real-time blockchain transactions on local EVM..."}</span>
+                  <span>{loadProgress || "Loading the saved benchmark report..."}</span>
                 </div>
               )}
 
-              <p className="hint" style={{ marginBottom: "16px" }}>Click the button above to execute real-time blockchain transactions directly on your connected local Ganache EVM. This executes 4-step transfer lifecycles across <strong>10, 100, and 500</strong> land transaction batches.</p>
+              <p className="hint" style={{ marginBottom: "16px" }}>This page displays the saved comparison for <strong>10, 100, and 500</strong> four-step transfer lifecycles. Reloading it does not send blockchain transactions or block the dashboard.</p>
 
               {loadReport?.results?.length ? (
                 <>
@@ -2061,7 +2078,7 @@ export default function BhoomiApp() {
                       <div>
                         <h3 style={{ margin: 0, fontSize: "1.1rem", color: "#0f172a" }}>Gas Consumption Histogram (Base vs. Optimized)</h3>
                         <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", color: "#64748b" }}>Vertical column comparison across 10, 100, and 500 property transaction workloads</p>
-                        {loadReport.runId && <small style={{ display: "block", marginTop: "4px", color: "#475569" }}>Live run {loadReport.runId} · started {new Date(loadReport.startedAt).toLocaleTimeString()}{loadReport.completedAt ? ` · completed ${new Date(loadReport.completedAt).toLocaleTimeString()}` : ""}</small>}
+                        <small style={{ display: "block", marginTop: "4px", color: "#475569" }}>Saved benchmark snapshot{loadReport.generatedAt ? ` · generated ${new Date(loadReport.generatedAt).toLocaleString()}` : ""}</small>
                       </div>
                       <div style={{ display: "flex", gap: "16px", fontSize: "0.85rem" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: "6px" }}><span style={{ width: "12px", height: "12px", background: "#b45309", borderRadius: "3px" }} /> Base Contract</span>
@@ -2109,7 +2126,7 @@ export default function BhoomiApp() {
                     </div>
                   </div>
 
-                  <p className="hint">Each execution uses newly generated land IDs and new on-chain transactions. Gas for an identical contract lifecycle is expected to be stable; the run ID and execution times above confirm a fresh measurement.</p>
+                  <p className="hint">These are saved local-EVM benchmark values. Use a separate controlled benchmark run when fresh on-chain measurements are required.</p>
                   <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.9rem" }}>
                       <thead>
@@ -2119,7 +2136,7 @@ export default function BhoomiApp() {
                           <th style={{ padding: "10px" }}>Workload Batch</th>
                           <th style={{ padding: "10px" }}>Total EVM Gas</th>
                           <th style={{ padding: "10px" }}>Gas per Lifecycle</th>
-                          <th style={{ padding: "10px" }}>Execution Time</th>
+                          <th style={{ padding: "10px" }}>Recorded Time</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2138,7 +2155,7 @@ export default function BhoomiApp() {
                   </div>
                 </>
               ) : (
-                <p className="empty">No real-time workload benchmark executed yet. Click "Execute Real-Time 10, 100, 500 Load Test" to run the test.</p>
+                <p className="empty">The saved workload report is unavailable. Reload the benchmark after restoring the report file.</p>
               )}
             </Card>
           </section>

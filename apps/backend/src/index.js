@@ -448,23 +448,8 @@ app.get("/api/benchmarks/loads", (_request, response) => {
 
 app.post("/api/benchmarks/run-load-test", requireAdmin, (_request, response) => {
   try {
-    let report = latestLoadReport();
-    if (!report) {
-      const contractsDir = path.resolve(__dirname, "../../../packages/contracts");
-      if (fs.existsSync(contractsDir)) {
-        try {
-          const { execSync } = require("child_process");
-          execSync("npx hardhat run scripts/benchmarkLoads.js", { cwd: contractsDir });
-          report = latestLoadReport();
-        } catch (err) {
-          console.warn("Child process load test skipped:", err.message);
-        }
-      }
-    }
-    if (!report) {
-      report = { generatedAt: new Date().toISOString(), loads: [10, 100, 500], results: defaultLoadBenchmarkResults };
-    }
-    addAudit({ action: "Executed 10, 100, 500 Load Test Benchmark", landId: "Scalability", actor: "System Administrator", detail: "Executed workloads for Base and Optimized smart contracts" });
+    const report = latestLoadReport() || { generatedAt: new Date().toISOString(), loads: [10, 100, 500], results: defaultLoadBenchmarkResults };
+    addAudit({ action: "Loaded 10, 100, 500 Workload Benchmark", landId: "Scalability", actor: "System Administrator", detail: "Loaded saved Base and Optimized contract benchmark values" });
     saveState();
     return response.json(report);
   } catch (error) {
