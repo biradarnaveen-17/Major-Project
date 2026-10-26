@@ -1,8 +1,7 @@
 import { errorText, baseErrorText } from "../config.js";
 
-export function displayError(error, registry) {
+export function displayError(error, registry, action) {
   const rawMessage = error?.shortMessage || error?.reason || error?.message || "Transaction failed.";
-  if (rawMessage.includes("missing revert data")) return "This land ID has not been registered on the active contract.";
   const name = error?.revert?.name || error?.errorName;
   if (errorText[name]) return errorText[name];
   const rawData = [error?.data, error?.info?.error?.data, error?.error?.data].find((value) => typeof value === "string");
@@ -14,7 +13,17 @@ export function displayError(error, registry) {
   }
   const details = [error?.revert?.reason, error?.reason, error?.message, rawMessage].filter(Boolean).join(" ").toLowerCase();
   const match = baseErrorText.find(([fragment]) => details.includes(fragment));
-  return match ? match[1] : rawMessage;
+  if (match) return match[1];
+
+  if (rawMessage.includes("missing revert data") || error?.code === "CALL_EXCEPTION") {
+    const isRegister = action === "register" || details.includes("registerland") || (typeof error?.transaction?.data === "string" && error.transaction.data.startsWith("0x4d133eed"));
+    if (isRegister) {
+      return "Registration rejected by Smart Contract: This physical parcel (Survey Number & Village) has already been registered on the blockchain! Under Karnataka land records rules, a parcel cannot be registered twice. Please create a request with a new Survey Number (e.g. 101/A) to register a new parcel.";
+    }
+    return "This land ID has not been registered on the active contract.";
+  }
+
+  return rawMessage;
 }
 
 export function shortAddress(value) {

@@ -1277,7 +1277,7 @@ export default function BhoomiApp() {
       }
     } catch (error) {
       console.error("Submit transaction failed:", error);
-      const friendlyError = displayError(error);
+      const friendlyError = displayError(error, null, action);
       if (action === "register" && friendlyError === errorText.DuplicateRegistration) {
         const freshId = String(Date.now());
         setForm((current) => ({ ...current, landId: freshId }));
